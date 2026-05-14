@@ -706,10 +706,9 @@ function TodayView(props: {
     addFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
   return <div className="view-stack">
-    <Section title="今日" description="思いついたことを追加して、今日やることを確認できます。">
+    <Section title="今日">
       <div className="today-actions">
         <button className="primary-button add-task-button" type="button" onClick={showAddForm}>＋ 新規タスク</button>
-        <p className="small-note">外出先でも、タイトルだけでさっと追加できます。</p>
       </div>
     </Section>
     <CollapsibleSection title="今日やる" count={filteredTodayTasks.length} description="今日動きたいものを置きます。あとから状態を変えても大丈夫です。" isOpen={Boolean(openSections.today)} onToggle={() => toggleSection("today")}>
