@@ -418,8 +418,15 @@ function TodayView(props: SharedProps & {
 } & SearchProps) {
   const { filters, setFilters, matches, matchesSearch } = props;
   const addFormRef = useRef<HTMLDivElement | null>(null);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const todayFilterPairs: [string, string][] = [["category", filters.todayCategory ?? "すべて"], ["type", filters.todayType ?? "すべて"]];
+  const filteredTodayTasks = props.todayTasks.filter((task) => matches(task, todayFilterPairs) && matchesSearch(task));
+  const filteredNearDueTasks = props.nearDueTasks.filter((task) => matches(task, todayFilterPairs) && matchesSearch(task));
+  const filteredCompletedTodayTasks = props.completedTodayTasks.filter((task) => matches(task, todayFilterPairs) && matchesSearch(task));
   const filteredWaitingContactTasks = props.waitingContactTasks.filter((task) => matches(task, todayFilterPairs) && matchesSearch(task));
+  function toggleSection(key: string) {
+    setOpenSections((current) => ({ ...current, [key]: !current[key] }));
+  }
   function showAddForm() {
     addFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -432,18 +439,18 @@ function TodayView(props: SharedProps & {
       <SearchBox value={props.searchQuery} onChange={props.setSearchQuery} />
       <FilterBar filters={[{ label: "カテゴリ", value: filters.todayCategory ?? "すべて", keyName: "todayCategory", options: ACTIVE_TASK_CATEGORIES }, { label: "種類", value: filters.todayType ?? "すべて", keyName: "todayType", options: TASK_TYPES }]} setFilters={setFilters} current={filters} />
     </Section>
-    <Section title="今日やる" description="今日動きたいものを置きます。あとから状態を変えても大丈夫です。">
-      <TaskList empty="今日やるタスクはありません。必要なら新規タスクから追加できます。" tasks={props.todayTasks.filter((task) => matches(task, todayFilterPairs) && matchesSearch(task))} actions={(task) => <><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><MoveButtons task={task} moveTask={props.moveTask} hide={["今日やる"]} /><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>} saveTask={props.saveTask} />
-    </Section>
-    <Section title="期限が近い" description="責める場所ではなく、そろそろ見ておくものを拾う場所です。" className="due-section">
-      <TaskList empty="期限が近いタスクはありません。" tasks={props.nearDueTasks.filter((task) => matches(task, todayFilterPairs) && matchesSearch(task))} actions={(task) => <><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><Action onClick={() => props.moveTask(task, "今日やる")}>今日やるへ</Action><Action onClick={() => props.moveTask(task, "保留")}>保留へ</Action></>} saveTask={props.saveTask} />
-    </Section>
-    <Section title="今日完了したこと" description="今日やったことを見えるようにして、日記や振り返りに使います。">
-      <TaskList empty="今日完了したタスクはまだありません。終わったこともあとから追加できます。" tasks={props.completedTodayTasks.filter((task) => matches(task, todayFilterPairs) && matchesSearch(task))} actions={(task) => <Action onClick={() => props.undoComplete(task)}>完了を取り消す</Action>} saveTask={props.saveTask} />
-    </Section>
-    <Section title={`連絡待ち（${filteredWaitingContactTasks.length}件）`} description="相手からの返信や回答を待っているものを、今日やることとは分けて置きます。" className="waiting-section">
+    <CollapsibleSection title="今日やる" count={filteredTodayTasks.length} description="今日動きたいものを置きます。あとから状態を変えても大丈夫です。" isOpen={Boolean(openSections.today)} onToggle={() => toggleSection("today")}>
+      <TaskList empty="今日やるタスクはありません。必要なら新規タスクから追加できます。" tasks={filteredTodayTasks} actions={(task) => <><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><MoveButtons task={task} moveTask={props.moveTask} hide={["今日やる"]} /><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>} saveTask={props.saveTask} />
+    </CollapsibleSection>
+    <CollapsibleSection title="期限が近い" count={filteredNearDueTasks.length} description="責める場所ではなく、そろそろ見ておくものを拾う場所です。" className="due-section" isOpen={Boolean(openSections.nearDue)} onToggle={() => toggleSection("nearDue")}>
+      <TaskList empty="期限が近いタスクはありません。" tasks={filteredNearDueTasks} actions={(task) => <><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><Action onClick={() => props.moveTask(task, "今日やる")}>今日やるへ</Action><Action onClick={() => props.moveTask(task, "保留")}>保留へ</Action></>} saveTask={props.saveTask} />
+    </CollapsibleSection>
+    <CollapsibleSection title="今日完了したこと" count={filteredCompletedTodayTasks.length} description="今日やったことを見えるようにして、日記や振り返りに使います。" isOpen={Boolean(openSections.completedToday)} onToggle={() => toggleSection("completedToday")}>
+      <TaskList empty="今日完了したタスクはまだありません。終わったこともあとから追加できます。" tasks={filteredCompletedTodayTasks} actions={(task) => <Action onClick={() => props.undoComplete(task)}>完了を取り消す</Action>} saveTask={props.saveTask} />
+    </CollapsibleSection>
+    <CollapsibleSection title="連絡待ち" count={filteredWaitingContactTasks.length} description="相手からの返信や回答を待っているものを、今日やることとは分けて置きます。" className="waiting-section" isOpen={Boolean(openSections.waiting)} onToggle={() => toggleSection("waiting")}>
       <TaskList empty="連絡待ちはありません。" tasks={filteredWaitingContactTasks} actions={(task) => <><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><Action onClick={() => props.moveTask(task, "今日やる")}>今日やるへ</Action><Action onClick={() => props.moveTask(task, "近いうち")}>近いうちへ</Action><Action onClick={() => props.moveTask(task, "保留")}>保留へ</Action><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>} saveTask={props.saveTask} />
-    </Section>
+    </CollapsibleSection>
     <div ref={addFormRef}>
       <Section title="タスクを追加" description="思いついたタスクをその場で追加できます。あとでやりたいことも、まずはストックできます。">
         <TaskForm initial={newDraft("いつかやる")} submitLabel="タスクを追加" onSubmit={props.addTask} allowDone />
@@ -490,6 +497,15 @@ function SettingsView({ data, exportJson, parseImport, fileInputRef, importError
 
 function Section({ title, description, children, className = "" }: { title: string; description?: string; children?: React.ReactNode; className?: string }) {
   return <section className={`section ${className}`.trim()}><div className="section-head"><h2>{title}</h2>{description && <p>{description}</p>}</div>{children}</section>;
+}
+
+function CollapsibleSection({ title, count, description, children, className = "", isOpen, onToggle }: { title: string; count: number; description?: string; children: React.ReactNode; className?: string; isOpen: boolean; onToggle: () => void }) {
+  return <section className={`section collapsible-section ${className}`.trim()}>
+    <button className="collapse-trigger" type="button" onClick={onToggle} aria-expanded={isOpen}>
+      <span className="collapse-title"><span aria-hidden="true">{isOpen ? "▼" : "▶"}</span>{title}<span className="collapse-count">{count}件</span></span>
+    </button>
+    {isOpen && <div className="collapsible-body">{description && <p className="collapse-description">{description}</p>}{children}</div>}
+  </section>;
 }
 
 function SearchBox({ value, onChange }: { value: string; onChange: (value: string) => void }) {

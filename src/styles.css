@@ -27,15 +27,23 @@ h2, h3, p { margin-top: 0; overflow-wrap: anywhere; }
 .section { background: #ffffff; border: 1px solid #dce4df; border-radius: 8px; padding: 1rem; box-shadow: 0 10px 30px rgba(52, 68, 60, 0.06); }
 .due-section { background: #fff7f0; border-color: #e9c8a8; }
 .due-section .section-head h2 { color: #8a4a24; }
+.due-section .collapse-trigger { color: #8a4a24; border-color: #e9c8a8; background: #fffaf4; }
 .due-section .task-card { background: #fffdf9; border-color: #e8c7a4; }
 .due-section .chips span { background: #f6dfc9; color: #80451f; }
 .waiting-section { background: #fbf8f2; border-color: #e5d6bd; }
 .waiting-section .section-head h2 { color: #73552c; }
+.waiting-section .collapse-trigger { color: #73552c; border-color: #e5d6bd; background: #fffdf8; }
 .waiting-section .task-card { background: #fffdf8; border-color: #e3d1b2; }
 .waiting-section .chips span { background: #f2e3cc; color: #6f4f22; }
 .section-head { margin-bottom: 0.9rem; }
 .section-head h2 { margin-bottom: 0.25rem; font-size: 1.22rem; }
 .section-head p { color: #66736d; line-height: 1.7; margin-bottom: 0; }
+.collapsible-section { display: grid; gap: 0.85rem; }
+.collapse-trigger { width: 100%; min-height: 52px; display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 0.85rem; text-align: left; font-weight: 800; background: #fbfcfb; border-color: #d9e2dc; }
+.collapse-title { min-width: 0; display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.45rem 0.55rem; font-size: 1.05rem; overflow-wrap: anywhere; }
+.collapse-count { color: #65716c; font-size: 0.92rem; font-weight: 750; }
+.collapsible-body { display: grid; gap: 0.8rem; }
+.collapse-description { color: #66736d; line-height: 1.7; margin-bottom: 0; }
 .task-grid { display: grid; gap: 0.75rem; }
 .task-card { display: grid; gap: 0.8rem; border: 1px solid #d9e2dc; border-radius: 8px; padding: 1rem; background: #fbfcfb; }
 .task-card h3 { margin: 0; font-size: 1.08rem; line-height: 1.45; overflow-wrap: anywhere; }
