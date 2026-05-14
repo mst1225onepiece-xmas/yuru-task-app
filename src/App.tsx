@@ -772,7 +772,7 @@ function StockView(props: SharedProps & SearchProps & { tasks: Task[]; filters: 
     setOpenGroups((current) => ({ ...current, [key]: !current[key] }));
   }
   return <div className="view-stack">
-    <Section title="ストック" />
+    <Section title="ストック" description="あとで拾いたいタスクを置く場所です。" />
     <Section title="絞り込み"><StockFilterPanel searchQuery={props.searchQuery} setSearchQuery={props.setSearchQuery} filters={props.filters} setFilters={props.setFilters} /></Section>
     <div className="stock-groups">
       {groups.map((group) => <CollapsibleSection key={group.key} title={group.title} count={group.tasks.length} isOpen={Boolean(openGroups[group.key])} onToggle={() => toggleGroup(group.key)}>
