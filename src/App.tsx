@@ -94,6 +94,15 @@ type VisibleRecurringTask = {
   targetDate: string;
 };
 
+type DoneDisplayItem =
+  | { kind: "task"; id: string; completedDate: string; completedAt: string; task: Task }
+  | { kind: "recurring"; id: string; completedDate: string; completedAt: string; completion: RecurringCompletion };
+
+type DoneGroup = {
+  date: string;
+  items: DoneDisplayItem[];
+};
+
 const TASK_TYPES: TaskType[] = ["やるべきこと", "やりたいこと", "思いつき"];
 const TASK_STATUSES: TaskStatus[] = ["今日やる", "近いうち", "いつかやる", "連絡待ち", "保留", "完了"];
 const ACTIVE_TASK_CATEGORIES: ActiveTaskCategory[] = ["生活", "仕事", "お金", "人・連絡", "趣味", "開発", "SNS", "その他"];
@@ -385,6 +394,31 @@ function isRecentlyUpdatedStockTask(task: Task) {
   if (!updatedKey) return false;
   const todayDate = dateFromKey(todayKey());
   return updatedKey >= dateKeyFromDate(addDays(todayDate, -2)) && updatedKey <= todayKey();
+}
+
+function doneCompletionMatchesSearch(completion: RecurringCompletion, query: string) {
+  if (!query) return true;
+  return [completion.titleSnapshot, completion.categorySnapshot, completion.kindSnapshot, completion.targetDate].some((value) => value.toLowerCase().includes(query));
+}
+
+function groupDoneItems(items: DoneDisplayItem[]): DoneGroup[] {
+  const groups = new Map<string, DoneDisplayItem[]>();
+  items.forEach((item) => {
+    const group = groups.get(item.completedDate) ?? [];
+    group.push(item);
+    groups.set(item.completedDate, group);
+  });
+  return Array.from(groups.entries())
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([date, groupItems]) => ({ date, items: groupItems.sort((a, b) => b.completedAt.localeCompare(a.completedAt)) }));
+}
+
+function defaultOpenDoneDate(groups: DoneGroup[]) {
+  if (groups.length === 0) return "";
+  const yesterday = dateKeyFromDate(addDays(dateFromKey(todayKey()), -1));
+  const yesterdayGroup = groups.find((group) => group.date === yesterday);
+  if (yesterdayGroup) return yesterdayGroup.date;
+  return groups.find((group) => group.date !== todayKey())?.date ?? groups[0].date;
 }
 
 function dueLabel(dueDate: string | null) {
@@ -687,7 +721,7 @@ function App() {
       <main>
         {activeTab === "今日" && <TodayView todayTasks={todayTasks} nearDueTasks={nearDueTasks} recurringTodayTasks={recurringTodayTasks} completedTodayTasks={completedTodayTasks} recurringCompletedToday={recurringCompletedToday} waitingContactTasks={waitingContactTasks} addTask={addTask} saveTask={saveTask} moveTask={moveTask} undoComplete={undoComplete} completeRecurringTask={completeRecurringTask} requestDelete={setDeleteTarget} copyKeepText={copyKeepText} />}
         {activeTab === "ストック" && <StockView tasks={stockTasks} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} saveTask={saveTask} moveTask={moveTask} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
-        {activeTab === "完了" && <DoneView tasks={doneTasks} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} saveTask={saveTask} undoComplete={undoComplete} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
+        {activeTab === "完了" && <DoneView tasks={doneTasks} recurringCompletions={data.recurringCompletions} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} saveTask={saveTask} undoComplete={undoComplete} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
         {activeTab === "設定" && <SettingsView data={data} exportJson={exportJson} parseImport={parseImport} fileInputRef={fileInputRef} importError={importError} addRecurringTask={addRecurringTask} saveRecurringTask={saveRecurringTask} setRecurringActive={setRecurringActive} requestRecurringDelete={setRecurringDeleteTarget} />}
       </main>
 
@@ -821,13 +855,59 @@ function StockFilterPanel({ searchQuery, setSearchQuery, filters, setFilters }: 
   </div>;
 }
 
-function DoneView(props: Omit<SharedProps, "moveTask"> & SearchProps & { tasks: Task[]; filters: Record<string, FilterValue>; setFilters: (filters: Record<string, FilterValue>) => void; undoComplete: (task: Task) => void }) {
+function DoneView(props: Omit<SharedProps, "moveTask"> & SearchProps & { tasks: Task[]; recurringCompletions: RecurringCompletion[]; filters: Record<string, FilterValue>; setFilters: (filters: Record<string, FilterValue>) => void; undoComplete: (task: Task) => void }) {
   const pairs: [string, string][] = [["category", props.filters.doneCategory ?? "すべて"], ["type", props.filters.doneType ?? "すべて"]];
+  const query = props.searchQuery.trim().toLowerCase();
+  const filteredTasks: DoneDisplayItem[] = props.tasks
+    .filter((task) => props.matches(task, pairs) && props.matchesSearch(task))
+    .map((task) => ({ kind: "task", id: task.id, completedDate: toDateKey(task.completedAt), completedAt: task.completedAt ?? "", task }));
+  const filteredRecurringCompletions: DoneDisplayItem[] = props.recurringCompletions
+    .filter((completion) => (props.filters.doneCategory ?? "すべて") === "すべて" || completion.categorySnapshot === props.filters.doneCategory)
+    .filter((completion) => (props.filters.doneType ?? "すべて") === "すべて")
+    .filter((completion) => doneCompletionMatchesSearch(completion, query))
+    .map((completion) => ({ kind: "recurring", id: completion.id, completedDate: toDateKey(completion.completedAt), completedAt: completion.completedAt, completion }));
+  const doneGroups = groupDoneItems([...filteredTasks, ...filteredRecurringCompletions]);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    const defaultDate = defaultOpenDoneDate(doneGroups);
+    return defaultDate ? { [defaultDate]: true } : {};
+  });
+  function toggleGroup(date: string) {
+    setOpenGroups((current) => ({ ...current, [date]: !current[date] }));
+  }
   return <div className="view-stack">
     <Section title="完了" description="終わったことを残す場所です。日記や振り返りの材料にできます。" />
-    <Section title="絞り込み"><SearchBox value={props.searchQuery} onChange={props.setSearchQuery} /><FilterBar current={props.filters} setFilters={props.setFilters} filters={[{ label: "カテゴリ", keyName: "doneCategory", value: props.filters.doneCategory ?? "すべて", options: ACTIVE_TASK_CATEGORIES }, { label: "種類", keyName: "doneType", value: props.filters.doneType ?? "すべて", options: TASK_TYPES }]} /></Section>
-    <Section title="完了一覧"><TaskList empty="完了タスクはまだありません。終わったことを残すと、日記や振り返りに使えます。" tasks={props.tasks.filter((task) => props.matches(task, pairs) && props.matchesSearch(task))} actions={(task) => <><Action onClick={() => props.undoComplete(task)}>完了を取り消す</Action><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>} saveTask={props.saveTask} /></Section>
+    <Section title="絞り込み"><DoneFilterPanel searchQuery={props.searchQuery} setSearchQuery={props.setSearchQuery} filters={props.filters} setFilters={props.setFilters} /></Section>
+    {doneGroups.length === 0 ? <Section title="完了一覧"><p className="empty-text">完了タスクはまだありません。終わったことを残すと、日記や振り返りに使えます。</p></Section> : <div className="done-groups">
+      {doneGroups.map((group) => <CollapsibleSection key={group.date} title={group.date} count={group.items.length} isOpen={Boolean(openGroups[group.date])} onToggle={() => toggleGroup(group.date)}>
+        <DoneGroupList items={group.items} saveTask={props.saveTask} undoComplete={props.undoComplete} requestDelete={props.requestDelete} />
+      </CollapsibleSection>)}
+    </div>}
   </div>;
+}
+
+function DoneFilterPanel({ searchQuery, setSearchQuery, filters, setFilters }: SearchProps & { filters: Record<string, FilterValue>; setFilters: (filters: Record<string, FilterValue>) => void }) {
+  const filterItems = [
+    { label: "カテゴリ", keyName: "doneCategory", value: filters.doneCategory ?? "すべて", options: ACTIVE_TASK_CATEGORIES },
+    { label: "種類", keyName: "doneType", value: filters.doneType ?? "すべて", options: TASK_TYPES },
+  ];
+  return <div className="done-filter-panel">
+    <label className="compact-search-row"><span>検索</span><input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="タスクを検索" /></label>
+    <div className="done-filter-grid">
+      {filterItems.map((filter) => <Select key={filter.keyName} label={filter.label} value={filter.value} options={["すべて", ...filter.options]} onChange={(value) => setFilters({ ...filters, [filter.keyName]: value })} />)}
+    </div>
+  </div>;
+}
+
+function DoneGroupList({ items, saveTask, undoComplete, requestDelete }: { items: DoneDisplayItem[]; saveTask: (task: Task, draft: TaskDraft) => void; undoComplete: (task: Task) => void; requestDelete: (task: Task) => void }) {
+  return <div className="task-grid">{items.map((item) => item.kind === "task" ? <TaskCard key={item.id} task={item.task} saveTask={saveTask} actions={<><Action onClick={() => undoComplete(item.task)}>完了を取り消す</Action><Action subtle onClick={() => requestDelete(item.task)}>削除</Action></>} /> : <RecurringCompletionCard key={item.id} completion={item.completion} />)}</div>;
+}
+
+function RecurringCompletionCard({ completion }: { completion: RecurringCompletion }) {
+  return <article className="task-card recurring-card">
+    <div className="chips"><span>繰り返し</span><span>{completion.categorySnapshot}</span><span>{completion.kindSnapshot}</span></div>
+    <h3>{completion.titleSnapshot}</h3>
+    <div className="task-meta"><span>対象日：{completion.targetDate}</span><span>完了：{completion.completedAt.slice(0, 10)}</span></div>
+  </article>;
 }
 
 function RecurringTodayList({ items, completeRecurringTask }: { items: VisibleRecurringTask[]; completeRecurringTask: (item: VisibleRecurringTask) => void }) {
