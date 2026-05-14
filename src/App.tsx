@@ -662,7 +662,7 @@ function App() {
 
       <main>
         {activeTab === "今日" && <TodayView todayTasks={todayTasks} nearDueTasks={nearDueTasks} recurringTodayTasks={recurringTodayTasks} completedTodayTasks={completedTodayTasks} recurringCompletedToday={recurringCompletedToday} waitingContactTasks={waitingContactTasks} addTask={addTask} saveTask={saveTask} moveTask={moveTask} undoComplete={undoComplete} completeRecurringTask={completeRecurringTask} requestDelete={setDeleteTarget} copyKeepText={copyKeepText} />}
-        {activeTab === "ストック" && <StockView tasks={stockTasks} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} addTask={addTask} saveTask={saveTask} moveTask={moveTask} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
+        {activeTab === "ストック" && <StockView tasks={stockTasks} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} saveTask={saveTask} moveTask={moveTask} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
         {activeTab === "完了" && <DoneView tasks={doneTasks} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} saveTask={saveTask} undoComplete={undoComplete} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
         {activeTab === "設定" && <SettingsView data={data} exportJson={exportJson} parseImport={parseImport} fileInputRef={fileInputRef} importError={importError} addRecurringTask={addRecurringTask} saveRecurringTask={saveRecurringTask} setRecurringActive={setRecurringActive} requestRecurringDelete={setRecurringDeleteTarget} />}
       </main>
@@ -755,7 +755,7 @@ function TodayView(props: {
   </div>;
 }
 
-function StockView(props: SharedProps & SearchProps & { tasks: Task[]; filters: Record<string, FilterValue>; setFilters: (filters: Record<string, FilterValue>) => void; addTask: (draft: TaskDraft) => boolean }) {
+function StockView(props: SharedProps & SearchProps & { tasks: Task[]; filters: Record<string, FilterValue>; setFilters: (filters: Record<string, FilterValue>) => void }) {
   const pairs: [string, string][] = [["status", props.filters.stockStatus ?? "すべて"], ["category", props.filters.stockCategory ?? "すべて"], ["type", props.filters.stockType ?? "すべて"], ["place", props.filters.stockPlace ?? "すべて"]];
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ soon: true });
   const visibleTasks = props.tasks.filter((task) => props.matches(task, pairs) && props.matchesSearch(task));
@@ -772,13 +772,27 @@ function StockView(props: SharedProps & SearchProps & { tasks: Task[]; filters: 
     setOpenGroups((current) => ({ ...current, [key]: !current[key] }));
   }
   return <div className="view-stack">
-    <Section title="ストック" description="今すぐではないタスクや思いつきを置く場所です。" />
-    <Section title="ストックに追加"><TaskForm initial={newDraft("いつかやる")} submitLabel="ストックに追加" onSubmit={props.addTask} allowDone /></Section>
-    <Section title="絞り込み"><SearchBox value={props.searchQuery} onChange={props.setSearchQuery} /><FilterBar current={props.filters} setFilters={props.setFilters} filters={[{ label: "状態", keyName: "stockStatus", value: props.filters.stockStatus ?? "すべて", options: ["近いうち", "いつかやる", "連絡待ち", "保留"] }, { label: "カテゴリ", keyName: "stockCategory", value: props.filters.stockCategory ?? "すべて", options: ACTIVE_TASK_CATEGORIES }, { label: "種類", keyName: "stockType", value: props.filters.stockType ?? "すべて", options: TASK_TYPES }, { label: "作業場所", keyName: "stockPlace", value: props.filters.stockPlace ?? "すべて", options: TASK_PLACES }]} /></Section>
+    <Section title="ストック" />
+    <Section title="絞り込み"><StockFilterPanel searchQuery={props.searchQuery} setSearchQuery={props.setSearchQuery} filters={props.filters} setFilters={props.setFilters} /></Section>
     <div className="stock-groups">
       {groups.map((group) => <CollapsibleSection key={group.key} title={group.title} count={group.tasks.length} isOpen={Boolean(openGroups[group.key])} onToggle={() => toggleGroup(group.key)}>
         <TaskList empty={`${group.title}のタスクはありません。`} tasks={group.tasks} actions={stockActions} saveTask={props.saveTask} />
       </CollapsibleSection>)}
+    </div>
+  </div>;
+}
+
+function StockFilterPanel({ searchQuery, setSearchQuery, filters, setFilters }: SearchProps & { filters: Record<string, FilterValue>; setFilters: (filters: Record<string, FilterValue>) => void }) {
+  const filterItems = [
+    { label: "状態", keyName: "stockStatus", value: filters.stockStatus ?? "すべて", options: ["近いうち", "いつかやる", "連絡待ち", "保留"] },
+    { label: "カテゴリ", keyName: "stockCategory", value: filters.stockCategory ?? "すべて", options: ACTIVE_TASK_CATEGORIES },
+    { label: "種類", keyName: "stockType", value: filters.stockType ?? "すべて", options: TASK_TYPES },
+    { label: "作業場所", keyName: "stockPlace", value: filters.stockPlace ?? "すべて", options: TASK_PLACES },
+  ];
+  return <div className="stock-filter-panel">
+    <label className="stock-search-row"><span>検索</span><input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="タスクを検索" /></label>
+    <div className="stock-filter-grid">
+      {filterItems.map((filter) => <Select key={filter.keyName} label={filter.label} value={filter.value} options={["すべて", ...filter.options]} onChange={(value) => setFilters({ ...filters, [filter.keyName]: value })} />)}
     </div>
   </div>;
 }
