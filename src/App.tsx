@@ -135,8 +135,15 @@ const newDraft = (status: TaskStatus): TaskDraft => ({
 });
 
 const toDateKey = (value: string | null) => value ? value.slice(0, 10) : "";
-const todayKey = () => toDateKey(new Date().toISOString());
-const nowIso = () => new Date().toISOString();
+const todayKey = () => dateKeyFromDate(new Date());
+const nowIso = () => {
+  const now = new Date();
+  const hours = String(now.getHours()).padStart(2, "0");
+  const minutes = String(now.getMinutes()).padStart(2, "0");
+  const seconds = String(now.getSeconds()).padStart(2, "0");
+  const milliseconds = String(now.getMilliseconds()).padStart(3, "0");
+  return `${dateKeyFromDate(now)}T${hours}:${minutes}:${seconds}.${milliseconds}`;
+};
 const byCreatedDesc = (a: Task, b: Task) => b.createdAt.localeCompare(a.createdAt);
 const byCompletedDesc = (a: Task, b: Task) => (b.completedAt ?? "").localeCompare(a.completedAt ?? "");
 const repeatTypeLabel = (repeatType: RepeatType) => repeatType === "weekly" ? "毎週" : "毎月";
