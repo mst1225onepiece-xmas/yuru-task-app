@@ -1,14 +1,15 @@
 const CACHE_NAME = "yuru-task-cache-v1";
 const APP_SHELL = [
-  "/",
-  "/index.html",
-  "/manifest.webmanifest",
-  "/icons/yuru-task-icon.svg",
-  "/icons/yuru-task-maskable.svg",
-  "/icons/yuru-task-icon-192.png",
-  "/icons/yuru-task-icon-512.png",
-  "/icons/apple-touch-icon.png",
+  "./",
+  "./index.html",
+  "./manifest.webmanifest",
+  "./icons/yuru-task-icon.svg",
+  "./icons/yuru-task-maskable.svg",
+  "./icons/yuru-task-icon-192.png",
+  "./icons/yuru-task-icon-512.png",
+  "./icons/apple-touch-icon.png",
 ];
+const APP_FALLBACK = new URL("index.html", self.registration.scope);
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -31,7 +32,7 @@ self.addEventListener("fetch", (event) => {
   if (requestUrl.origin !== self.location.origin) return;
 
   if (event.request.mode === "navigate") {
-    event.respondWith(fetch(event.request).catch(() => caches.match("/index.html")));
+    event.respondWith(fetch(event.request).catch(() => caches.match(APP_FALLBACK)));
     return;
   }
 
