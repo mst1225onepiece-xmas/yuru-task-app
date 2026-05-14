@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">ゆるタスク maskable</title>
+  <desc id="desc">マスク可能領域を広めにした、ゆるタスクの仮アイコン</desc>
+  <rect width="512" height="512" fill="#2f5d50"/>
+  <circle cx="256" cy="242" r="168" fill="#f5f7f4"/>
+  <path d="M160 252l58 58 138-150" fill="none" stroke="#2f5d50" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="256" y="382" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="96" font-weight="800" fill="#73552c">ゆ</text>
+</svg>
