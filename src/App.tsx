@@ -483,7 +483,7 @@ function SettingsView({ data, exportJson, parseImport, fileInputRef, importError
       {importError && <p className="form-error">{importError}</p>}
     </Section>
     <Section title="整理メモコピーの説明"><p>今日画面の内容から、見返しやすいMarkdown風テキストを作ります。日中の確認や、夜の日記材料に使えます。</p></Section>
-    <Section title="固定リスト"><div className="fixed-grid"><FixedList title="種類" items={data.settings.types} /><FixedList title="状態" items={data.settings.statuses} /><FixedList title="カテゴリ" items={data.settings.categories} /><FixedList title="作業場所" items={data.settings.places} /></div></Section>
+    <Section title="固定リスト"><div className="fixed-grid"><FixedList title="種類" items={TASK_TYPES} /><FixedList title="状態" items={TASK_STATUSES} /><FixedList title="カテゴリ" items={ACTIVE_TASK_CATEGORIES} /><FixedList title="作業場所" items={TASK_PLACES} /></div></Section>
     <Section title="保存方式の説明"><p>初期版はブラウザのlocalStorageに自動保存します。タスク追加、編集、削除、状態変更、JSONインポートのあと保存ボタンなしで保存されます。</p></Section>
   </div>;
 }
