@@ -146,6 +146,15 @@ const nowIso = () => {
 };
 const byCreatedDesc = (a: Task, b: Task) => b.createdAt.localeCompare(a.createdAt);
 const byCompletedDesc = (a: Task, b: Task) => (b.completedAt ?? "").localeCompare(a.completedAt ?? "");
+const byUpdatedThenCreatedDesc = (a: Task, b: Task) => b.updatedAt.localeCompare(a.updatedAt) || byCreatedDesc(a, b);
+const byDueThenUpdatedDesc = (a: Task, b: Task) => {
+  const aHasDue = Boolean(a.dueDate);
+  const bHasDue = Boolean(b.dueDate);
+  if (aHasDue && bHasDue) return (a.dueDate ?? "").localeCompare(b.dueDate ?? "") || byUpdatedThenCreatedDesc(a, b);
+  if (aHasDue) return -1;
+  if (bHasDue) return 1;
+  return byUpdatedThenCreatedDesc(a, b);
+};
 const repeatTypeLabel = (repeatType: RepeatType) => repeatType === "weekly" ? "毎週" : "毎月";
 const recurringInfo = (task: RecurringTask) => task.repeatType === "weekly" ? `毎週 ${WEEKDAYS[task.weekday ?? 0]}` : `毎月 ${task.monthDay}日`;
 
@@ -351,6 +360,14 @@ function completedRecurringToday(data: AppData) {
   return data.recurringCompletions.filter((completion) => toDateKey(completion.completedAt) === todayKey()).sort((a, b) => b.completedAt.localeCompare(a.completedAt));
 }
 
+function isRecentlyUpdatedStockTask(task: Task) {
+  if (task.status === "今日やる" || task.status === "近いうち" || task.status === "完了") return false;
+  const updatedKey = toDateKey(task.updatedAt);
+  if (!updatedKey) return false;
+  const todayDate = dateFromKey(todayKey());
+  return updatedKey >= dateKeyFromDate(addDays(todayDate, -2)) && updatedKey <= todayKey();
+}
+
 function dueLabel(dueDate: string | null) {
   if (!dueDate) return "";
   const today = new Date(`${todayKey()}T00:00:00`);
@@ -401,7 +418,7 @@ function App() {
   const nearDueTasks = tasks.filter((task) => isNearDue(task) && task.status !== "連絡待ち").sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? ""));
   const completedTodayTasks = tasks.filter((task) => task.status === "完了" && toDateKey(task.completedAt) === todayKey()).sort(byCompletedDesc);
   const waitingContactTasks = tasks.filter((task) => task.status === "連絡待ち" && !task.completedAt).sort(byCreatedDesc);
-  const stockTasks = tasks.filter((task) => ["近いうち", "いつかやる", "連絡待ち", "保留"].includes(task.status)).sort(byCreatedDesc);
+  const stockTasks = tasks.filter((task) => task.status !== "完了" && task.status !== "今日やる").sort(byCreatedDesc);
   const doneTasks = tasks.filter((task) => task.status === "完了").sort(byCompletedDesc);
   const recurringTodayTasks = visibleRecurringTasks(data);
   const recurringCompletedToday = completedRecurringToday(data);
@@ -740,11 +757,29 @@ function TodayView(props: {
 
 function StockView(props: SharedProps & SearchProps & { tasks: Task[]; filters: Record<string, FilterValue>; setFilters: (filters: Record<string, FilterValue>) => void; addTask: (draft: TaskDraft) => boolean }) {
   const pairs: [string, string][] = [["status", props.filters.stockStatus ?? "すべて"], ["category", props.filters.stockCategory ?? "すべて"], ["type", props.filters.stockType ?? "すべて"], ["place", props.filters.stockPlace ?? "すべて"]];
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ soon: true });
+  const visibleTasks = props.tasks.filter((task) => props.matches(task, pairs) && props.matchesSearch(task));
+  const stockActions = (task: Task) => <><MoveButtons task={task} moveTask={props.moveTask} /><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>;
+  const groups = [
+    { key: "soon", title: "近いうち", tasks: visibleTasks.filter((task) => task.status === "近いうち").sort(byDueThenUpdatedDesc) },
+    { key: "recent", title: "最近更新", tasks: visibleTasks.filter(isRecentlyUpdatedStockTask).sort(byUpdatedThenCreatedDesc) },
+    { key: "someday", title: "いつかやる", tasks: visibleTasks.filter((task) => task.status === "いつかやる").sort(byDueThenUpdatedDesc) },
+    { key: "hold", title: "保留", tasks: visibleTasks.filter((task) => task.status === "保留").sort(byDueThenUpdatedDesc) },
+    { key: "waiting", title: "連絡待ち", tasks: visibleTasks.filter((task) => task.status === "連絡待ち").sort(byDueThenUpdatedDesc) },
+    { key: "other", title: "その他・未整理", tasks: visibleTasks.filter((task) => !["近いうち", "いつかやる", "保留", "連絡待ち"].includes(task.status)).sort(byDueThenUpdatedDesc) },
+  ];
+  function toggleGroup(key: string) {
+    setOpenGroups((current) => ({ ...current, [key]: !current[key] }));
+  }
   return <div className="view-stack">
     <Section title="ストック" description="今すぐではないタスクや思いつきを置く場所です。" />
     <Section title="ストックに追加"><TaskForm initial={newDraft("いつかやる")} submitLabel="ストックに追加" onSubmit={props.addTask} allowDone /></Section>
     <Section title="絞り込み"><SearchBox value={props.searchQuery} onChange={props.setSearchQuery} /><FilterBar current={props.filters} setFilters={props.setFilters} filters={[{ label: "状態", keyName: "stockStatus", value: props.filters.stockStatus ?? "すべて", options: ["近いうち", "いつかやる", "連絡待ち", "保留"] }, { label: "カテゴリ", keyName: "stockCategory", value: props.filters.stockCategory ?? "すべて", options: ACTIVE_TASK_CATEGORIES }, { label: "種類", keyName: "stockType", value: props.filters.stockType ?? "すべて", options: TASK_TYPES }, { label: "作業場所", keyName: "stockPlace", value: props.filters.stockPlace ?? "すべて", options: TASK_PLACES }]} /></Section>
-    <Section title="ストック一覧"><TaskList empty="ストックはまだ空です。あとでやりたいことや思いつきを置けます。" tasks={props.tasks.filter((task) => props.matches(task, pairs) && props.matchesSearch(task))} actions={(task) => <><MoveButtons task={task} moveTask={props.moveTask} /><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>} saveTask={props.saveTask} /></Section>
+    <div className="stock-groups">
+      {groups.map((group) => <CollapsibleSection key={group.key} title={group.title} count={group.tasks.length} isOpen={Boolean(openGroups[group.key])} onToggle={() => toggleGroup(group.key)}>
+        <TaskList empty={`${group.title}のタスクはありません。`} tasks={group.tasks} actions={stockActions} saveTask={props.saveTask} />
+      </CollapsibleSection>)}
+    </div>
   </div>;
 }
 
