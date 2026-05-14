@@ -644,7 +644,7 @@ function App() {
       {notice && <div className="message success">{notice}</div>}
 
       <main>
-        {activeTab === "今日" && <TodayView tasks={tasks} todayTasks={todayTasks} nearDueTasks={nearDueTasks} recurringTodayTasks={recurringTodayTasks} completedTodayTasks={completedTodayTasks} recurringCompletedToday={recurringCompletedToday} waitingContactTasks={waitingContactTasks} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} addTask={addTask} saveTask={saveTask} moveTask={moveTask} undoComplete={undoComplete} completeRecurringTask={completeRecurringTask} requestDelete={setDeleteTarget} copyKeepText={copyKeepText} matches={matches} matchesSearch={matchesSearch} />}
+        {activeTab === "今日" && <TodayView todayTasks={todayTasks} nearDueTasks={nearDueTasks} recurringTodayTasks={recurringTodayTasks} completedTodayTasks={completedTodayTasks} recurringCompletedToday={recurringCompletedToday} waitingContactTasks={waitingContactTasks} addTask={addTask} saveTask={saveTask} moveTask={moveTask} undoComplete={undoComplete} completeRecurringTask={completeRecurringTask} requestDelete={setDeleteTarget} copyKeepText={copyKeepText} />}
         {activeTab === "ストック" && <StockView tasks={stockTasks} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} addTask={addTask} saveTask={saveTask} moveTask={moveTask} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
         {activeTab === "完了" && <DoneView tasks={doneTasks} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} saveTask={saveTask} undoComplete={undoComplete} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
         {activeTab === "設定" && <SettingsView data={data} exportJson={exportJson} parseImport={parseImport} fileInputRef={fileInputRef} importError={importError} addRecurringTask={addRecurringTask} saveRecurringTask={saveRecurringTask} setRecurringActive={setRecurringActive} requestRecurringDelete={setRecurringDeleteTarget} />}
@@ -676,31 +676,29 @@ type SearchProps = {
   setSearchQuery: (value: string) => void;
 };
 
-function TodayView(props: SharedProps & {
-  tasks: Task[];
+function TodayView(props: {
   todayTasks: Task[];
   nearDueTasks: Task[];
   recurringTodayTasks: VisibleRecurringTask[];
   completedTodayTasks: Task[];
   recurringCompletedToday: RecurringCompletion[];
   waitingContactTasks: Task[];
-  filters: Record<string, FilterValue>;
-  setFilters: (filters: Record<string, FilterValue>) => void;
   addTask: (draft: TaskDraft) => boolean;
+  saveTask: (task: Task, draft: TaskDraft) => void;
+  moveTask: (task: Task, status: TaskStatus) => void;
+  requestDelete: (task: Task) => void;
   undoComplete: (task: Task) => void;
   completeRecurringTask: (item: VisibleRecurringTask) => void;
   copyKeepText: () => void;
-} & SearchProps) {
-  const { filters, setFilters, matches, matchesSearch } = props;
+}) {
   const addFormRef = useRef<HTMLDivElement | null>(null);
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
-  const todayFilterPairs: [string, string][] = [["category", filters.todayCategory ?? "すべて"], ["type", filters.todayType ?? "すべて"]];
-  const filteredTodayTasks = props.todayTasks.filter((task) => matches(task, todayFilterPairs) && matchesSearch(task));
-  const filteredNearDueTasks = props.nearDueTasks.filter((task) => matches(task, todayFilterPairs) && matchesSearch(task));
-  const filteredCompletedTodayTasks = props.completedTodayTasks.filter((task) => matches(task, todayFilterPairs) && matchesSearch(task));
-  const filteredRecurringTodayTasks = props.recurringTodayTasks.filter((item) => (filters.todayCategory ?? "すべて") === "すべて" || item.task.category === filters.todayCategory);
-  const filteredRecurringCompletedToday = props.recurringCompletedToday.filter((completion) => (filters.todayCategory ?? "すべて") === "すべて" || completion.categorySnapshot === filters.todayCategory);
-  const filteredWaitingContactTasks = props.waitingContactTasks.filter((task) => matches(task, todayFilterPairs) && matchesSearch(task));
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({ today: true });
+  const filteredTodayTasks = props.todayTasks;
+  const filteredNearDueTasks = props.nearDueTasks;
+  const filteredCompletedTodayTasks = props.completedTodayTasks;
+  const filteredRecurringTodayTasks = props.recurringTodayTasks;
+  const filteredRecurringCompletedToday = props.recurringCompletedToday;
+  const filteredWaitingContactTasks = props.waitingContactTasks;
   function toggleSection(key: string) {
     setOpenSections((current) => ({ ...current, [key]: !current[key] }));
   }
@@ -708,13 +706,11 @@ function TodayView(props: SharedProps & {
     addFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
   return <div className="view-stack">
-    <Section title="今日" description="思いついたことをまず追加して、あとで今日やる・近いうちなどに分けられます。">
+    <Section title="今日" description="思いついたことを追加して、今日やることを確認できます。">
       <div className="today-actions">
         <button className="primary-button add-task-button" type="button" onClick={showAddForm}>＋ 新規タスク</button>
         <p className="small-note">外出先でも、タイトルだけでさっと追加できます。</p>
       </div>
-      <SearchBox value={props.searchQuery} onChange={props.setSearchQuery} />
-      <FilterBar filters={[{ label: "カテゴリ", value: filters.todayCategory ?? "すべて", keyName: "todayCategory", options: ACTIVE_TASK_CATEGORIES }, { label: "種類", value: filters.todayType ?? "すべて", keyName: "todayType", options: TASK_TYPES }]} setFilters={setFilters} current={filters} />
     </Section>
     <CollapsibleSection title="今日やる" count={filteredTodayTasks.length} description="今日動きたいものを置きます。あとから状態を変えても大丈夫です。" isOpen={Boolean(openSections.today)} onToggle={() => toggleSection("today")}>
       <TaskList empty="今日やるタスクはありません。必要なら新規タスクから追加できます。" tasks={filteredTodayTasks} actions={(task) => <><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><MoveButtons task={task} moveTask={props.moveTask} hide={["今日やる"]} /><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>} saveTask={props.saveTask} />
