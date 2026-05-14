@@ -46,6 +46,8 @@ h2, h3, p { margin-top: 0; overflow-wrap: anywhere; }
 .small-note, .empty-text { color: #65716c; line-height: 1.65; margin-bottom: 0; }
 .button-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .primary-button { background: #2f5d50; color: #ffffff; border-color: #2f5d50; font-weight: 750; }
+.today-actions { display: grid; gap: 0.55rem; margin-bottom: 0.9rem; }
+.add-task-button { width: 100%; min-height: 50px; font-size: 1.02rem; }
 .subtle-button { color: #6d514d; border-color: #ddceca; }
 .danger-button { background: #8c4a43; border-color: #8c4a43; color: #ffffff; }
 .task-form { display: grid; gap: 0.85rem; }
@@ -61,6 +63,7 @@ h2, h3, p { margin-top: 0; overflow-wrap: anywhere; }
 
 @media (min-width: 760px) {
   .app-shell { padding: 1.5rem 1.5rem calc(7rem + env(safe-area-inset-bottom)); }
+  .add-task-button { width: fit-content; min-width: 180px; }
   .section { padding: 1.25rem; }
 }
 

@@ -312,7 +312,7 @@ function App() {
 
   async function copyKeepText() {
     await navigator.clipboard.writeText(keepText());
-    setNotice("Keep用テキストをコピーしました。");
+    setNotice("整理メモをコピーしました。");
   }
 
   function exportJson() {
@@ -361,7 +361,7 @@ function App() {
     <div className="app-shell">
       <header className="app-header">
         <div>
-          <p className="eyebrow">夜にKeepメモを回収するタスク台帳</p>
+          <p className="eyebrow">思いついたことをその場で置けるタスク台帳</p>
           <h1>ゆるタスク</h1>
         </div>
       </header>
@@ -417,30 +417,40 @@ function TodayView(props: SharedProps & {
   copyKeepText: () => void;
 } & SearchProps) {
   const { filters, setFilters, matches, matchesSearch } = props;
+  const addFormRef = useRef<HTMLDivElement | null>(null);
   const todayFilterPairs: [string, string][] = [["category", filters.todayCategory ?? "すべて"], ["type", filters.todayType ?? "すべて"]];
   const filteredWaitingContactTasks = props.waitingContactTasks.filter((task) => matches(task, todayFilterPairs) && matchesSearch(task));
+  function showAddForm() {
+    addFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
   return <div className="view-stack">
-    <Section title="今日" description="今日は、今日やることを確認しつつ、夜にKeepメモを回収する場所です。">
+    <Section title="今日" description="思いついたことをまず追加して、あとで今日やる・近いうちなどに分けられます。">
+      <div className="today-actions">
+        <button className="primary-button add-task-button" type="button" onClick={showAddForm}>＋ 新規タスク</button>
+        <p className="small-note">外出先でも、タイトルだけでさっと追加できます。</p>
+      </div>
       <SearchBox value={props.searchQuery} onChange={props.setSearchQuery} />
       <FilterBar filters={[{ label: "カテゴリ", value: filters.todayCategory ?? "すべて", keyName: "todayCategory", options: ACTIVE_TASK_CATEGORIES }, { label: "種類", value: filters.todayType ?? "すべて", keyName: "todayType", options: TASK_TYPES }]} setFilters={setFilters} current={filters} />
     </Section>
-    <Section title="今日やる" description="夜に「明日見たい」と思ったものも、初期版ではここに置きます。">
-      <TaskList empty="今日やるタスクはありません。必要ならKeepメモから追加できます。" tasks={props.todayTasks.filter((task) => matches(task, todayFilterPairs) && matchesSearch(task))} actions={(task) => <><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><MoveButtons task={task} moveTask={props.moveTask} hide={["今日やる"]} /><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>} saveTask={props.saveTask} />
+    <Section title="今日やる" description="今日動きたいものを置きます。あとから状態を変えても大丈夫です。">
+      <TaskList empty="今日やるタスクはありません。必要なら新規タスクから追加できます。" tasks={props.todayTasks.filter((task) => matches(task, todayFilterPairs) && matchesSearch(task))} actions={(task) => <><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><MoveButtons task={task} moveTask={props.moveTask} hide={["今日やる"]} /><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>} saveTask={props.saveTask} />
     </Section>
     <Section title="期限が近い" description="責める場所ではなく、そろそろ見ておくものを拾う場所です。" className="due-section">
       <TaskList empty="期限が近いタスクはありません。" tasks={props.nearDueTasks.filter((task) => matches(task, todayFilterPairs) && matchesSearch(task))} actions={(task) => <><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><Action onClick={() => props.moveTask(task, "今日やる")}>今日やるへ</Action><Action onClick={() => props.moveTask(task, "保留")}>保留へ</Action></>} saveTask={props.saveTask} />
     </Section>
     <Section title="今日完了したこと" description="今日やったことを見えるようにして、日記や振り返りに使います。">
-      <TaskList empty="今日完了したタスクはまだありません。夜にKeepメモを見ながら追加してもOKです。" tasks={props.completedTodayTasks.filter((task) => matches(task, todayFilterPairs) && matchesSearch(task))} actions={(task) => <Action onClick={() => props.undoComplete(task)}>完了を取り消す</Action>} saveTask={props.saveTask} />
+      <TaskList empty="今日完了したタスクはまだありません。終わったこともあとから追加できます。" tasks={props.completedTodayTasks.filter((task) => matches(task, todayFilterPairs) && matchesSearch(task))} actions={(task) => <Action onClick={() => props.undoComplete(task)}>完了を取り消す</Action>} saveTask={props.saveTask} />
     </Section>
     <Section title={`連絡待ち（${filteredWaitingContactTasks.length}件）`} description="相手からの返信や回答を待っているものを、今日やることとは分けて置きます。" className="waiting-section">
       <TaskList empty="連絡待ちはありません。" tasks={filteredWaitingContactTasks} actions={(task) => <><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><Action onClick={() => props.moveTask(task, "今日やる")}>今日やるへ</Action><Action onClick={() => props.moveTask(task, "近いうち")}>近いうちへ</Action><Action onClick={() => props.moveTask(task, "保留")}>保留へ</Action><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>} saveTask={props.saveTask} />
     </Section>
-    <Section title="Keepから追加" description="日中にGoogle Keepへ書いた思いつき、完了、やることを夜に登録します。">
-      <TaskForm initial={newDraft("いつかやる")} submitLabel="Keepメモから追加" onSubmit={props.addTask} allowDone />
-    </Section>
-    <Section title="Keep用コピー" description="Google Keepに貼って、スマホで見返すためのMarkdown風テキストを作ります。">
-      <button className="primary-button" onClick={props.copyKeepText}>Keep用テキストをコピー</button>
+    <div ref={addFormRef}>
+      <Section title="タスクを追加" description="思いついたタスクをその場で追加できます。あとでやりたいことも、まずはストックできます。">
+        <TaskForm initial={newDraft("いつかやる")} submitLabel="タスクを追加" onSubmit={props.addTask} allowDone />
+      </Section>
+    </div>
+    <Section title="整理メモをコピー" description="今日画面の内容から、あとで見返しやすいMarkdown風テキストを作ります。">
+      <button className="primary-button" onClick={props.copyKeepText}>整理メモをコピー</button>
     </Section>
   </div>;
 }
@@ -472,7 +482,7 @@ function SettingsView({ data, exportJson, parseImport, fileInputRef, importError
       <input ref={fileInputRef} type="file" accept="application/json,.json" hidden onChange={parseImport} />
       {importError && <p className="form-error">{importError}</p>}
     </Section>
-    <Section title="Keep用コピーの説明"><p>今日画面の内容から、Google Keepに貼りやすいMarkdown風テキストを作ります。スマホでの日中チェックや、夜の日記材料に使えます。</p></Section>
+    <Section title="整理メモコピーの説明"><p>今日画面の内容から、見返しやすいMarkdown風テキストを作ります。日中の確認や、夜の日記材料に使えます。</p></Section>
     <Section title="固定リスト"><div className="fixed-grid"><FixedList title="種類" items={data.settings.types} /><FixedList title="状態" items={data.settings.statuses} /><FixedList title="カテゴリ" items={data.settings.categories} /><FixedList title="作業場所" items={data.settings.places} /></div></Section>
     <Section title="保存方式の説明"><p>初期版はブラウザのlocalStorageに自動保存します。タスク追加、編集、削除、状態変更、JSONインポートのあと保存ボタンなしで保存されます。</p></Section>
   </div>;
