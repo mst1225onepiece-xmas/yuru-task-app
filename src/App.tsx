@@ -708,8 +708,8 @@ function TodayView(props: {
   completeRecurringTask: (item: VisibleRecurringTask) => void;
   copyKeepText: () => void;
 }) {
-  const addFormRef = useRef<HTMLDivElement | null>(null);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({ today: true });
+  const [isAddFormOpen, setIsAddFormOpen] = useState(false);
   const filteredTodayTasks = props.todayTasks;
   const filteredNearDueTasks = props.nearDueTasks;
   const filteredCompletedTodayTasks = props.completedTodayTasks;
@@ -719,13 +719,18 @@ function TodayView(props: {
   function toggleSection(key: string) {
     setOpenSections((current) => ({ ...current, [key]: !current[key] }));
   }
-  function showAddForm() {
-    addFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  function addTaskAndClose(draft: TaskDraft) {
+    const added = props.addTask(draft);
+    if (added) setIsAddFormOpen(false);
+    return added;
   }
   return <div className="view-stack">
     <Section title="今日">
       <div className="today-actions">
-        <button className="primary-button add-task-button" type="button" onClick={showAddForm}>＋ 新規タスク</button>
+        <button className="primary-button add-task-button" type="button" onClick={() => setIsAddFormOpen((current) => !current)} aria-expanded={isAddFormOpen}>{isAddFormOpen ? "▼ 新規タスク" : "＋ 新規タスク"}</button>
+        {isAddFormOpen && <div className="today-add-panel">
+          <TaskForm initial={newDraft("いつかやる")} submitLabel="タスクを追加" onSubmit={addTaskAndClose} onCancel={() => setIsAddFormOpen(false)} allowDone />
+        </div>}
       </div>
     </Section>
     <CollapsibleSection title="今日やる" count={filteredTodayTasks.length} description="今日動きたいものを置きます。あとから状態を変えても大丈夫です。" isOpen={Boolean(openSections.today)} onToggle={() => toggleSection("today")}>
@@ -744,11 +749,6 @@ function TodayView(props: {
     <CollapsibleSection title="連絡待ち" count={filteredWaitingContactTasks.length} description="相手からの返信や回答を待っているものを、今日やることとは分けて置きます。" className="waiting-section" isOpen={Boolean(openSections.waiting)} onToggle={() => toggleSection("waiting")}>
       <TaskList empty="連絡待ちはありません。" tasks={filteredWaitingContactTasks} actions={(task) => <><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><Action onClick={() => props.moveTask(task, "今日やる")}>今日やるへ</Action><Action onClick={() => props.moveTask(task, "近いうち")}>近いうちへ</Action><Action onClick={() => props.moveTask(task, "保留")}>保留へ</Action><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>} saveTask={props.saveTask} />
     </CollapsibleSection>
-    <div ref={addFormRef}>
-      <Section title="タスクを追加" description="思いついたタスクをその場で追加できます。あとでやりたいことも、まずはストックできます。">
-        <TaskForm initial={newDraft("いつかやる")} submitLabel="タスクを追加" onSubmit={props.addTask} allowDone />
-      </Section>
-    </div>
     <Section title="整理メモをコピー" description="今日画面の内容から、あとで見返しやすいMarkdown風テキストを作ります。">
       <button className="primary-button" onClick={props.copyKeepText}>整理メモをコピー</button>
     </Section>
