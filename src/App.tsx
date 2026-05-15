@@ -30,6 +30,7 @@ type AppData = {
   version: number;
   exportedAt?: string;
   tasks: Task[];
+  frequentTasks: FrequentTask[];
   recurringTasks: RecurringTask[];
   recurringCompletions: RecurringCompletion[];
   settings: {
@@ -52,6 +53,25 @@ type TaskDraft = {
   place: TaskPlace;
   dueDate: string;
   memo: string;
+};
+
+type FrequentTask = {
+  id: string;
+  title: string;
+  memo: string;
+  type: TaskType;
+  category: TaskCategory;
+  place: TaskPlace;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type FrequentTaskDraft = {
+  title: string;
+  memo: string;
+  type: TaskType;
+  category: TaskCategory;
+  place: TaskPlace;
 };
 
 type RecurringTask = {
@@ -137,6 +157,7 @@ const STORED_VIEW_TO_TAB: Record<StoredView, Tab> = {
 const emptyData = (): AppData => ({
   version: 1,
   tasks: [],
+  frequentTasks: [],
   recurringTasks: [],
   recurringCompletions: [],
   settings: {
@@ -166,6 +187,14 @@ const newDraft = (status: TaskStatus): TaskDraft => ({
   place: "未設定",
   dueDate: "",
   memo: "",
+});
+
+const newFrequentTaskDraft = (): FrequentTaskDraft => ({
+  title: "",
+  memo: "",
+  type: "思いつき",
+  category: "生活",
+  place: "未設定",
 });
 
 const toDateKey = (value: string | null) => value ? value.slice(0, 10) : "";
@@ -222,6 +251,21 @@ function isTask(value: unknown): value is Task {
   );
 }
 
+function isFrequentTask(value: unknown): value is FrequentTask {
+  if (!value || typeof value !== "object") return false;
+  const task = value as Partial<FrequentTask>;
+  return (
+    typeof task.id === "string" &&
+    typeof task.title === "string" &&
+    typeof task.memo === "string" &&
+    isOneOf(task.type, TASK_TYPES) &&
+    typeof task.category === "string" &&
+    isOneOf(task.place, TASK_PLACES) &&
+    typeof task.createdAt === "string" &&
+    typeof task.updatedAt === "string"
+  );
+}
+
 function isRecurringTask(value: unknown): value is RecurringTask {
   if (!value || typeof value !== "object") return false;
   const task = value as Partial<RecurringTask>;
@@ -257,9 +301,10 @@ function isRecurringCompletion(value: unknown): value is RecurringCompletion {
 function isAppData(value: unknown): value is AppData {
   if (!value || typeof value !== "object") return false;
   const data = value as Partial<AppData>;
+  const frequentTasksOk = data.frequentTasks === undefined || (Array.isArray(data.frequentTasks) && data.frequentTasks.every(isFrequentTask));
   const recurringTasksOk = data.recurringTasks === undefined || (Array.isArray(data.recurringTasks) && data.recurringTasks.every(isRecurringTask));
   const recurringCompletionsOk = data.recurringCompletions === undefined || (Array.isArray(data.recurringCompletions) && data.recurringCompletions.every(isRecurringCompletion));
-  return typeof data.version === "number" && Array.isArray(data.tasks) && data.tasks.every(isTask) && recurringTasksOk && recurringCompletionsOk;
+  return typeof data.version === "number" && Array.isArray(data.tasks) && data.tasks.every(isTask) && frequentTasksOk && recurringTasksOk && recurringCompletionsOk;
 }
 
 function normalizeData(data: AppData): AppData {
@@ -267,6 +312,7 @@ function normalizeData(data: AppData): AppData {
     ...emptyData(),
     ...data,
     version: 1,
+    frequentTasks: data.frequentTasks ?? [],
     recurringTasks: data.recurringTasks ?? [],
     recurringCompletions: data.recurringCompletions ?? [],
     settings: {
@@ -313,6 +359,36 @@ function makeTask(draft: TaskDraft): Task {
   };
 }
 
+function makeTaskFromFrequentTask(template: FrequentTask): Task {
+  return makeTask({
+    title: template.title,
+    memo: template.memo,
+    type: template.type,
+    status: "今日やる",
+    category: template.category,
+    place: template.place,
+    dueDate: "",
+  });
+}
+
+function makeFrequentTask(draft: FrequentTaskDraft): FrequentTask {
+  const time = nowIso();
+  return {
+    id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+    title: draft.title.trim(),
+    memo: draft.memo.trim(),
+    type: draft.type,
+    category: draft.category,
+    place: draft.place,
+    createdAt: time,
+    updatedAt: time,
+  };
+}
+
+function frequentTaskMatches(task: FrequentTask, draft: FrequentTaskDraft) {
+  return task.title === draft.title.trim() && task.category === draft.category && task.type === draft.type && task.place === draft.place;
+}
+
 function draftFromTask(task: Task): TaskDraft {
   return {
     title: task.title,
@@ -322,6 +398,16 @@ function draftFromTask(task: Task): TaskDraft {
     place: task.place,
     dueDate: task.dueDate ?? "",
     memo: task.memo,
+  };
+}
+
+function draftFromFrequentTask(task: FrequentTask): FrequentTaskDraft {
+  return {
+    title: task.title,
+    memo: task.memo,
+    type: task.type,
+    category: task.category,
+    place: task.place,
   };
 }
 
@@ -485,6 +571,7 @@ function App() {
   const [notice, setNotice] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Task | null>(null);
   const [recurringDeleteTarget, setRecurringDeleteTarget] = useState<RecurringTask | null>(null);
+  const [frequentDeleteTarget, setFrequentDeleteTarget] = useState<FrequentTask | null>(null);
   const [importData, setImportData] = useState<AppData | null>(null);
   const [importError, setImportError] = useState("");
   const [filters, setFilters] = useState<Record<string, FilterValue>>({});
@@ -575,6 +662,46 @@ function App() {
     setData((current) => ({ ...current, tasks: current.tasks.filter((task) => task.id !== deleteTarget.id) }));
     setDeleteTarget(null);
     setNotice("タスクを削除しました。");
+  }
+
+  function registerFrequentTask(task: Task) {
+    const draft: FrequentTaskDraft = {
+      title: task.title,
+      memo: task.memo,
+      type: task.type,
+      category: task.category,
+      place: task.place,
+    };
+    if (data.frequentTasks.some((item) => frequentTaskMatches(item, draft))) {
+      setNotice("同じよく使うタスクがすでにあります。");
+      return;
+    }
+    setSaveBlocked(false);
+    setData((current) => ({ ...current, frequentTasks: [makeFrequentTask(draft), ...current.frequentTasks] }));
+    setNotice("よく使うタスクに登録しました。");
+  }
+
+  function saveFrequentTask(task: FrequentTask, draft: FrequentTaskDraft) {
+    if (!draft.title.trim()) return false;
+    const updated: FrequentTask = { ...task, ...draft, title: draft.title.trim(), memo: draft.memo.trim(), updatedAt: nowIso() };
+    setSaveBlocked(false);
+    setData((current) => ({ ...current, frequentTasks: current.frequentTasks.map((item) => item.id === task.id ? updated : item) }));
+    setNotice("よく使うタスクを更新しました。");
+    return true;
+  }
+
+  function addTaskFromFrequentTask(task: FrequentTask) {
+    setSaveBlocked(false);
+    setData((current) => ({ ...current, tasks: [makeTaskFromFrequentTask(task), ...current.tasks] }));
+    setNotice("よく使うタスクから今日やるに追加しました。");
+  }
+
+  function confirmFrequentDelete() {
+    if (!frequentDeleteTarget) return;
+    setSaveBlocked(false);
+    setData((current) => ({ ...current, frequentTasks: current.frequentTasks.filter((task) => task.id !== frequentDeleteTarget.id) }));
+    setFrequentDeleteTarget(null);
+    setNotice("よく使うタスクを削除しました。");
   }
 
   function makeRecurringTask(draft: RecurringDraft): RecurringTask {
@@ -767,10 +894,10 @@ function App() {
       {notice && <div className="message success">{notice}</div>}
 
       <main>
-        {activeTab === "今日" && <TodayView todayTasks={todayTasks} nearDueTasks={nearDueTasks} recurringTodayTasks={recurringTodayTasks} completedTodayTasks={completedTodayTasks} recurringCompletedToday={recurringCompletedToday} waitingContactTasks={waitingContactTasks} addTask={addTask} saveTask={saveTask} moveTask={moveTask} undoComplete={undoComplete} completeRecurringTask={completeRecurringTask} requestDelete={setDeleteTarget} copyKeepText={copyKeepText} />}
-        {activeTab === "ストック" && <StockView tasks={stockTasks} enjoymentInventory={stockEnjoymentInventory} enjoyInventoryItem={enjoyInventoryItem} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} saveTask={saveTask} moveTask={moveTask} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
-        {activeTab === "完了" && <DoneView tasks={doneTasks} recurringCompletions={data.recurringCompletions} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} saveTask={saveTask} undoComplete={undoComplete} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
-        {activeTab === "設定" && <SettingsView data={data} exportJson={exportJson} parseImport={parseImport} fileInputRef={fileInputRef} importError={importError} addRecurringTask={addRecurringTask} saveRecurringTask={saveRecurringTask} setRecurringActive={setRecurringActive} requestRecurringDelete={setRecurringDeleteTarget} />}
+        {activeTab === "今日" && <TodayView todayTasks={todayTasks} nearDueTasks={nearDueTasks} recurringTodayTasks={recurringTodayTasks} completedTodayTasks={completedTodayTasks} recurringCompletedToday={recurringCompletedToday} waitingContactTasks={waitingContactTasks} addTask={addTask} saveTask={saveTask} moveTask={moveTask} undoComplete={undoComplete} completeRecurringTask={completeRecurringTask} registerFrequentTask={registerFrequentTask} requestDelete={setDeleteTarget} copyKeepText={copyKeepText} />}
+        {activeTab === "ストック" && <StockView tasks={stockTasks} enjoymentInventory={stockEnjoymentInventory} enjoyInventoryItem={enjoyInventoryItem} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} saveTask={saveTask} moveTask={moveTask} registerFrequentTask={registerFrequentTask} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
+        {activeTab === "完了" && <DoneView tasks={doneTasks} recurringCompletions={data.recurringCompletions} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} saveTask={saveTask} undoComplete={undoComplete} registerFrequentTask={registerFrequentTask} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
+        {activeTab === "設定" && <SettingsView data={data} exportJson={exportJson} parseImport={parseImport} fileInputRef={fileInputRef} importError={importError} addTaskFromFrequentTask={addTaskFromFrequentTask} saveFrequentTask={saveFrequentTask} requestFrequentDelete={setFrequentDeleteTarget} addRecurringTask={addRecurringTask} saveRecurringTask={saveRecurringTask} setRecurringActive={setRecurringActive} requestRecurringDelete={setRecurringDeleteTarget} />}
       </main>
 
       {deleteTarget && (
@@ -778,6 +905,9 @@ function App() {
       )}
       {recurringDeleteTarget && (
         <ConfirmDialog title="この繰り返しタスクを削除しますか？" body="登録内容は削除され、今日画面にも表示されなくなります。過去の完了履歴は残ります。" confirmLabel="削除する" onConfirm={confirmRecurringDelete} onCancel={() => setRecurringDeleteTarget(null)} />
+      )}
+      {frequentDeleteTarget && (
+        <ConfirmDialog title="このよく使うタスクを削除しますか？" body="作成済みの通常タスクは削除されません。" confirmLabel="削除する" onConfirm={confirmFrequentDelete} onCancel={() => setFrequentDeleteTarget(null)} />
       )}
       {importData && (
         <ConfirmDialog title="JSONインポート" body="現在のタスクデータを、選択したJSONファイルの内容で置き換えます。必要なら先に現在のデータをエクスポートしてください。" confirmLabel="インポートする" onConfirm={doImport} onCancel={() => setImportData(null)} />
@@ -789,6 +919,7 @@ function App() {
 type SharedProps = {
   saveTask: (task: Task, draft: TaskDraft) => void;
   moveTask: (task: Task, status: TaskStatus) => void;
+  registerFrequentTask: (task: Task) => void;
   requestDelete: (task: Task) => void;
   matches: (task: Task, pairs: [string, string][]) => boolean;
   matchesSearch: (task: Task) => boolean;
@@ -812,6 +943,7 @@ function TodayView(props: {
   requestDelete: (task: Task) => void;
   undoComplete: (task: Task) => void;
   completeRecurringTask: (item: VisibleRecurringTask) => void;
+  registerFrequentTask: (task: Task) => void;
   copyKeepText: () => void;
 }) {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({ today: true });
@@ -840,20 +972,20 @@ function TodayView(props: {
       </div>
     </Section>
     <CollapsibleSection title="今日やる" count={filteredTodayTasks.length} description="今日動きたいものを置きます。あとから状態を変えても大丈夫です。" isOpen={Boolean(openSections.today)} onToggle={() => toggleSection("today")}>
-      <TaskList empty="今日やるタスクはありません。必要なら新規タスクから追加できます。" tasks={filteredTodayTasks} actions={(task) => <><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><MoveButtons task={task} moveTask={props.moveTask} hide={["今日やる"]} /><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>} saveTask={props.saveTask} />
+      <TaskList empty="今日やるタスクはありません。必要なら新規タスクから追加できます。" tasks={filteredTodayTasks} actions={(task) => <><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><MoveButtons task={task} moveTask={props.moveTask} hide={["今日やる"]} /><Action subtle onClick={() => props.registerFrequentTask(task)}>よく使う</Action><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>} saveTask={props.saveTask} />
     </CollapsibleSection>
     <CollapsibleSection title="期限が近い" count={filteredNearDueTasks.length} description="責める場所ではなく、そろそろ見ておくものを拾う場所です。" className="due-section" isOpen={Boolean(openSections.nearDue)} onToggle={() => toggleSection("nearDue")}>
-      <TaskList empty="期限が近いタスクはありません。" tasks={filteredNearDueTasks} actions={(task) => <><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><Action onClick={() => props.moveTask(task, "今日やる")}>今日やるへ</Action><Action onClick={() => props.moveTask(task, "保留")}>保留へ</Action></>} saveTask={props.saveTask} />
+      <TaskList empty="期限が近いタスクはありません。" tasks={filteredNearDueTasks} actions={(task) => <><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><Action onClick={() => props.moveTask(task, "今日やる")}>今日やるへ</Action><Action onClick={() => props.moveTask(task, "保留")}>保留へ</Action><Action subtle onClick={() => props.registerFrequentTask(task)}>よく使う</Action></>} saveTask={props.saveTask} />
     </CollapsibleSection>
     <CollapsibleSection title="繰り返し" count={filteredRecurringTodayTasks.length} description="毎週・毎月の予定や楽しみを、必要な期間だけここに出します。" isOpen={Boolean(openSections.recurring)} onToggle={() => toggleSection("recurring")}>
       <RecurringTodayList items={filteredRecurringTodayTasks} completeRecurringTask={props.completeRecurringTask} />
     </CollapsibleSection>
     <CollapsibleSection title="今日完了したこと" count={filteredCompletedTodayTasks.length + filteredRecurringCompletedToday.length} description="今日やったことを見えるようにして、日記や振り返りに使います。" isOpen={Boolean(openSections.completedToday)} onToggle={() => toggleSection("completedToday")}>
-      {filteredCompletedTodayTasks.length === 0 && filteredRecurringCompletedToday.length === 0 ? <p className="empty-text">今日完了したタスクはまだありません。終わったこともあとから追加できます。</p> : filteredCompletedTodayTasks.length > 0 && <TaskList empty="" tasks={filteredCompletedTodayTasks} actions={(task) => <Action onClick={() => props.undoComplete(task)}>完了を取り消す</Action>} saveTask={props.saveTask} />}
+      {filteredCompletedTodayTasks.length === 0 && filteredRecurringCompletedToday.length === 0 ? <p className="empty-text">今日完了したタスクはまだありません。終わったこともあとから追加できます。</p> : filteredCompletedTodayTasks.length > 0 && <TaskList empty="" tasks={filteredCompletedTodayTasks} actions={(task) => <><Action onClick={() => props.undoComplete(task)}>完了を取り消す</Action><Action subtle onClick={() => props.registerFrequentTask(task)}>よく使う</Action></>} saveTask={props.saveTask} />}
       <RecurringCompletionList completions={filteredRecurringCompletedToday} />
     </CollapsibleSection>
     <CollapsibleSection title="連絡待ち" count={filteredWaitingContactTasks.length} description="相手からの返信や回答を待っているものを、今日やることとは分けて置きます。" className="waiting-section" isOpen={Boolean(openSections.waiting)} onToggle={() => toggleSection("waiting")}>
-      <TaskList empty="連絡待ちはありません。" tasks={filteredWaitingContactTasks} actions={(task) => <><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><Action onClick={() => props.moveTask(task, "今日やる")}>今日やるへ</Action><Action onClick={() => props.moveTask(task, "近いうち")}>近いうちへ</Action><Action onClick={() => props.moveTask(task, "保留")}>保留へ</Action><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>} saveTask={props.saveTask} />
+      <TaskList empty="連絡待ちはありません。" tasks={filteredWaitingContactTasks} actions={(task) => <><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><Action onClick={() => props.moveTask(task, "今日やる")}>今日やるへ</Action><Action onClick={() => props.moveTask(task, "近いうち")}>近いうちへ</Action><Action onClick={() => props.moveTask(task, "保留")}>保留へ</Action><Action subtle onClick={() => props.registerFrequentTask(task)}>よく使う</Action><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>} saveTask={props.saveTask} />
     </CollapsibleSection>
     <Section title="整理メモをコピー" description="今日画面の内容から、あとで見返しやすいMarkdown風テキストを作ります。">
       <button className="primary-button" onClick={props.copyKeepText}>整理メモをコピー</button>
@@ -865,7 +997,7 @@ function StockView(props: SharedProps & SearchProps & { tasks: Task[]; enjoyment
   const pairs: [string, string][] = [["status", props.filters.stockStatus ?? "すべて"], ["category", props.filters.stockCategory ?? "すべて"], ["type", props.filters.stockType ?? "すべて"], ["place", props.filters.stockPlace ?? "すべて"]];
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ soon: true });
   const visibleTasks = props.tasks.filter((task) => props.matches(task, pairs) && props.matchesSearch(task));
-  const stockActions = (task: Task) => <><MoveButtons task={task} moveTask={props.moveTask} /><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>;
+  const stockActions = (task: Task) => <><MoveButtons task={task} moveTask={props.moveTask} /><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><Action subtle onClick={() => props.registerFrequentTask(task)}>よく使う</Action><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>;
   const groups = [
     { key: "soon", title: "近いうち", tasks: visibleTasks.filter((task) => task.status === "近いうち").sort(byDueThenUpdatedDesc) },
     { key: "recent", title: "最近更新", tasks: visibleTasks.filter(isRecentlyUpdatedStockTask).sort(byUpdatedThenCreatedDesc) },
@@ -912,17 +1044,23 @@ function EnjoymentInventoryCard({ inventory, enjoyInventoryItem }: { inventory: 
 }
 
 function StockFilterPanel({ searchQuery, setSearchQuery, filters, setFilters }: SearchProps & { filters: Record<string, FilterValue>; setFilters: (filters: Record<string, FilterValue>) => void }) {
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const filterItems = [
     { label: "状態", keyName: "stockStatus", value: filters.stockStatus ?? "すべて", options: ["近いうち", "いつかやる", "連絡待ち", "保留"] },
     { label: "カテゴリ", keyName: "stockCategory", value: filters.stockCategory ?? "すべて", options: ACTIVE_TASK_CATEGORIES },
     { label: "種類", keyName: "stockType", value: filters.stockType ?? "すべて", options: TASK_TYPES },
     { label: "作業場所", keyName: "stockPlace", value: filters.stockPlace ?? "すべて", options: TASK_PLACES },
   ];
+  const detailedFilterActive = filterItems.some((filter) => filter.value !== "すべて");
   return <div className="stock-filter-panel">
     <label className="stock-search-row"><span>検索</span><input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="タスクを検索" /></label>
-    <div className="stock-filter-grid">
+    <button className="stock-filter-toggle" type="button" onClick={() => setFiltersOpen((current) => !current)} aria-expanded={filtersOpen}>
+      {filtersOpen ? "絞り込みを閉じる" : "絞り込みを開く"}
+      {!filtersOpen && detailedFilterActive && <span>絞り込み適用中</span>}
+    </button>
+    {filtersOpen && <div className="stock-filter-grid">
       {filterItems.map((filter) => <Select key={filter.keyName} label={filter.label} value={filter.value} options={["すべて", ...filter.options]} onChange={(value) => setFilters({ ...filters, [filter.keyName]: value })} />)}
-    </div>
+    </div>}
   </div>;
 }
 
@@ -950,7 +1088,7 @@ function DoneView(props: Omit<SharedProps, "moveTask"> & SearchProps & { tasks: 
     <Section title="絞り込み"><DoneFilterPanel searchQuery={props.searchQuery} setSearchQuery={props.setSearchQuery} filters={props.filters} setFilters={props.setFilters} /></Section>
     {doneGroups.length === 0 ? <Section title="完了一覧"><p className="empty-text">完了タスクはまだありません。終わったことを残すと、日記や振り返りに使えます。</p></Section> : <div className="done-groups">
       {doneGroups.map((group) => <CollapsibleSection key={group.date} title={group.date} count={group.items.length} isOpen={Boolean(openGroups[group.date])} onToggle={() => toggleGroup(group.date)}>
-        <DoneGroupList items={group.items} saveTask={props.saveTask} undoComplete={props.undoComplete} requestDelete={props.requestDelete} />
+        <DoneGroupList items={group.items} saveTask={props.saveTask} undoComplete={props.undoComplete} registerFrequentTask={props.registerFrequentTask} requestDelete={props.requestDelete} />
       </CollapsibleSection>)}
     </div>}
   </div>;
@@ -969,8 +1107,8 @@ function DoneFilterPanel({ searchQuery, setSearchQuery, filters, setFilters }: S
   </div>;
 }
 
-function DoneGroupList({ items, saveTask, undoComplete, requestDelete }: { items: DoneDisplayItem[]; saveTask: (task: Task, draft: TaskDraft) => void; undoComplete: (task: Task) => void; requestDelete: (task: Task) => void }) {
-  return <div className="task-grid">{items.map((item) => item.kind === "task" ? <TaskCard key={item.id} task={item.task} saveTask={saveTask} actions={<><Action onClick={() => undoComplete(item.task)}>完了を取り消す</Action><Action subtle onClick={() => requestDelete(item.task)}>削除</Action></>} /> : <RecurringCompletionCard key={item.id} completion={item.completion} />)}</div>;
+function DoneGroupList({ items, saveTask, undoComplete, registerFrequentTask, requestDelete }: { items: DoneDisplayItem[]; saveTask: (task: Task, draft: TaskDraft) => void; undoComplete: (task: Task) => void; registerFrequentTask: (task: Task) => void; requestDelete: (task: Task) => void }) {
+  return <div className="task-grid">{items.map((item) => item.kind === "task" ? <TaskCard key={item.id} task={item.task} saveTask={saveTask} actions={<><Action onClick={() => undoComplete(item.task)}>完了を取り消す</Action><Action subtle onClick={() => registerFrequentTask(item.task)}>よく使う</Action><Action subtle onClick={() => requestDelete(item.task)}>削除</Action></>} /> : <RecurringCompletionCard key={item.id} completion={item.completion} />)}</div>;
 }
 
 function RecurringCompletionCard({ completion }: { completion: RecurringCompletion }) {
@@ -1073,8 +1211,55 @@ function RecurringTaskForm({ initial, submitLabel, onSubmit, onCancel }: { initi
   </form>;
 }
 
-function SettingsView({ data, exportJson, parseImport, fileInputRef, importError, addRecurringTask, saveRecurringTask, setRecurringActive, requestRecurringDelete }: { data: AppData; exportJson: () => void; parseImport: (event: ChangeEvent<HTMLInputElement>) => void; fileInputRef: React.MutableRefObject<HTMLInputElement | null>; importError: string; addRecurringTask: (draft: RecurringDraft) => boolean; saveRecurringTask: (task: RecurringTask, draft: RecurringDraft) => void; setRecurringActive: (task: RecurringTask, isActive: boolean) => void; requestRecurringDelete: (task: RecurringTask) => void }) {
+function FrequentTaskManager({ tasks, addTaskFromFrequentTask, saveFrequentTask, requestFrequentDelete }: { tasks: FrequentTask[]; addTaskFromFrequentTask: (task: FrequentTask) => void; saveFrequentTask: (task: FrequentTask, draft: FrequentTaskDraft) => boolean; requestFrequentDelete: (task: FrequentTask) => void }) {
+  return <div className="recurring-manager">
+    <div className="task-grid">
+      {tasks.length === 0 ? <p className="empty-text">よく使うタスクはまだありません。通常タスクの「よく使う」から登録できます。</p> : tasks.map((task) => <FrequentTaskCard key={task.id} task={task} addTaskFromFrequentTask={addTaskFromFrequentTask} saveFrequentTask={saveFrequentTask} requestFrequentDelete={requestFrequentDelete} />)}
+    </div>
+  </div>;
+}
+
+function FrequentTaskCard({ task, addTaskFromFrequentTask, saveFrequentTask, requestFrequentDelete }: { task: FrequentTask; addTaskFromFrequentTask: (task: FrequentTask) => void; saveFrequentTask: (task: FrequentTask, draft: FrequentTaskDraft) => boolean; requestFrequentDelete: (task: FrequentTask) => void }) {
+  const [editing, setEditing] = useState(false);
+  return <article className="task-card frequent-card">
+    {editing ? <FrequentTaskForm initial={draftFromFrequentTask(task)} submitLabel="保存する" onSubmit={(draft) => { const saved = saveFrequentTask(task, draft); if (saved) setEditing(false); return saved; }} onCancel={() => setEditing(false)} /> : <>
+      <div className="chips"><span>{task.type}</span><span>{task.category}</span><span>{task.place}</span></div>
+      <h3>{task.title}</h3>
+      {task.memo && <p className="task-memo">{task.memo}</p>}
+      <div className="button-row">
+        <button className="primary-button" type="button" onClick={() => addTaskFromFrequentTask(task)}>今日やるに追加</button>
+        <Action onClick={() => setEditing(true)}>編集</Action>
+        <Action subtle onClick={() => requestFrequentDelete(task)}>削除</Action>
+      </div>
+    </>}
+  </article>;
+}
+
+function FrequentTaskForm({ initial, submitLabel, onSubmit, onCancel }: { initial: FrequentTaskDraft; submitLabel: string; onSubmit: (draft: FrequentTaskDraft) => boolean; onCancel?: () => void }) {
+  const [draft, setDraft] = useState<FrequentTaskDraft>(initial);
+  const [error, setError] = useState("");
+  function setField<K extends keyof FrequentTaskDraft>(key: K, value: FrequentTaskDraft[K]) { setDraft((current) => ({ ...current, [key]: value })); }
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!draft.title.trim()) { setError("タイトルを入力してください。"); return; }
+    if (onSubmit(draft)) setError("");
+  }
+  return <form className="task-form frequent-form" onSubmit={submit}>
+    <label>タイトル<input value={draft.title} onChange={(event) => setField("title", event.target.value)} placeholder="よく使うタスク名" /></label>
+    <div className="form-grid">
+      <Select label="種類" value={draft.type} options={TASK_TYPES} onChange={(value) => setField("type", value as TaskType)} />
+      <CategorySelect value={draft.category} onChange={(value) => setField("category", value)} />
+      <Select label="作業場所" value={draft.place} options={TASK_PLACES} onChange={(value) => setField("place", value as TaskPlace)} />
+    </div>
+    <label>メモ<textarea value={draft.memo} onChange={(event) => setField("memo", event.target.value)} rows={3} /></label>
+    {error && <p className="form-error">{error}</p>}
+    <div className="button-row"><button className="primary-button" type="submit">{submitLabel}</button>{onCancel && <button type="button" onClick={onCancel}>キャンセル</button>}</div>
+  </form>;
+}
+
+function SettingsView({ data, exportJson, parseImport, fileInputRef, importError, addTaskFromFrequentTask, saveFrequentTask, requestFrequentDelete, addRecurringTask, saveRecurringTask, setRecurringActive, requestRecurringDelete }: { data: AppData; exportJson: () => void; parseImport: (event: ChangeEvent<HTMLInputElement>) => void; fileInputRef: React.MutableRefObject<HTMLInputElement | null>; importError: string; addTaskFromFrequentTask: (task: FrequentTask) => void; saveFrequentTask: (task: FrequentTask, draft: FrequentTaskDraft) => boolean; requestFrequentDelete: (task: FrequentTask) => void; addRecurringTask: (draft: RecurringDraft) => boolean; saveRecurringTask: (task: RecurringTask, draft: RecurringDraft) => void; setRecurringActive: (task: RecurringTask, isActive: boolean) => void; requestRecurringDelete: (task: RecurringTask) => void }) {
   const [recurringOpen, setRecurringOpen] = useState(false);
+  const [frequentOpen, setFrequentOpen] = useState(false);
   return <div className="view-stack">
     <Section title="データ管理" description="バックアップ、別端末への移動、不具合時の復元に使います。">
       <p className="small-note">実運用前や大きく整理する前は、JSONエクスポートでバックアップを残しておくと安心です。</p>
@@ -1082,6 +1267,9 @@ function SettingsView({ data, exportJson, parseImport, fileInputRef, importError
       <input ref={fileInputRef} type="file" accept="application/json,.json" hidden onChange={parseImport} />
       {importError && <p className="form-error">{importError}</p>}
     </Section>
+    <CollapsibleSection title="よく使うタスク管理" count={data.frequentTasks.length} description="必要なときに今日やるへ呼び出せる、通常タスク作成用のテンプレートです。" isOpen={frequentOpen} onToggle={() => setFrequentOpen((current) => !current)}>
+      <FrequentTaskManager tasks={data.frequentTasks} addTaskFromFrequentTask={addTaskFromFrequentTask} saveFrequentTask={saveFrequentTask} requestFrequentDelete={requestFrequentDelete} />
+    </CollapsibleSection>
     <CollapsibleSection title="繰り返しタスク管理" count={data.recurringTasks.length} description="毎週・毎月の予定や楽しみを、必要な期間だけ今日画面に出すための固定メニューです。" isOpen={recurringOpen} onToggle={() => setRecurringOpen((current) => !current)}>
       <RecurringTaskManager tasks={data.recurringTasks} addRecurringTask={addRecurringTask} saveRecurringTask={saveRecurringTask} setRecurringActive={setRecurringActive} requestRecurringDelete={requestRecurringDelete} />
     </CollapsibleSection>

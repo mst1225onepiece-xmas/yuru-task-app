@@ -66,6 +66,8 @@ h2, h3, p { margin-top: 0; overflow-wrap: anywhere; }
 .stock-search-row, .compact-search-row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0.55rem; }
 .stock-search-row span, .compact-search-row span, .stock-filter-grid label, .done-filter-grid label { min-width: 0; font-size: 0.88rem; }
 .stock-search-row input, .compact-search-row input, .stock-filter-grid select, .done-filter-grid select { min-width: 0; padding: 0.62rem 0.55rem; }
+.stock-filter-toggle { width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.45rem; min-height: 44px; padding: 0.6rem 0.75rem; background: #fbfcfb; border-color: #d7e1db; font-weight: 750; }
+.stock-filter-toggle span { border-radius: 999px; background: #e7f0ec; color: #2d5b4f; padding: 0.18rem 0.5rem; font-size: 0.78rem; font-weight: 750; }
 .stock-filter-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
 .stock-groups { display: grid; gap: 0.75rem; }
 .enjoyment-inventory { display: grid; gap: 0.55rem; background: #f7fbf8; border-color: #cfe0d6; box-shadow: 0 8px 22px rgba(52, 68, 60, 0.05); }
@@ -104,6 +106,9 @@ h2, h3, p { margin-top: 0; overflow-wrap: anywhere; }
   .bottom-nav { width: min(100% - 0.75rem, 520px); gap: 0.3rem; padding: 0.45rem; border-radius: 12px; }
   .bottom-nav button { min-height: 44px; padding: 0.5rem 0.2rem; }
   .button-row button { flex: 1 1 135px; }
+  .stock-search-row { grid-template-columns: 1fr; }
+  .stock-filter-grid { grid-template-columns: 1fr; }
+  .stock-filter-toggle { justify-content: center; flex-wrap: wrap; }
   .enjoyment-date-row { grid-template-columns: 1fr; align-items: stretch; }
   .enjoyment-done-button { width: 100%; }
   .form-grid, .filter-bar, .fixed-grid { grid-template-columns: 1fr; }
