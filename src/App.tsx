@@ -930,6 +930,19 @@ type SearchProps = {
   setSearchQuery: (value: string) => void;
 };
 
+type TaskCardActions = {
+  primary: React.ReactNode;
+  secondary?: React.ReactNode;
+};
+
+function compactActions(primary: React.ReactNode, secondary?: React.ReactNode): TaskCardActions {
+  return { primary, secondary };
+}
+
+function isTaskCardActions(value: React.ReactNode | TaskCardActions): value is TaskCardActions {
+  return value !== null && typeof value === "object" && "primary" in value;
+}
+
 function TodayView(props: {
   todayTasks: Task[];
   nearDueTasks: Task[];
@@ -972,7 +985,7 @@ function TodayView(props: {
       </div>
     </Section>
     <CollapsibleSection title="今日やる" count={filteredTodayTasks.length} description="今日動きたいものを置きます。あとから状態を変えても大丈夫です。" isOpen={Boolean(openSections.today)} onToggle={() => toggleSection("today")}>
-      <TaskList empty="今日やるタスクはありません。必要なら新規タスクから追加できます。" tasks={filteredTodayTasks} actions={(task) => <><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><MoveButtons task={task} moveTask={props.moveTask} hide={["今日やる"]} /><Action subtle onClick={() => props.registerFrequentTask(task)}>よく使う</Action><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>} saveTask={props.saveTask} />
+      <TaskList empty="今日やるタスクはありません。必要なら新規タスクから追加できます。" tasks={filteredTodayTasks} actions={(task) => compactActions(<Action onClick={() => props.moveTask(task, "完了")}>完了</Action>, <><MoveButtons task={task} moveTask={props.moveTask} hide={["今日やる"]} /><Action subtle onClick={() => props.registerFrequentTask(task)}>よく使う</Action><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>)} saveTask={props.saveTask} />
     </CollapsibleSection>
     <CollapsibleSection title="期限が近い" count={filteredNearDueTasks.length} description="責める場所ではなく、そろそろ見ておくものを拾う場所です。" className="due-section" isOpen={Boolean(openSections.nearDue)} onToggle={() => toggleSection("nearDue")}>
       <TaskList empty="期限が近いタスクはありません。" tasks={filteredNearDueTasks} actions={(task) => <><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><Action onClick={() => props.moveTask(task, "今日やる")}>今日やるへ</Action><Action onClick={() => props.moveTask(task, "保留")}>保留へ</Action><Action subtle onClick={() => props.registerFrequentTask(task)}>よく使う</Action></>} saveTask={props.saveTask} />
@@ -997,7 +1010,10 @@ function StockView(props: SharedProps & SearchProps & { tasks: Task[]; enjoyment
   const pairs: [string, string][] = [["status", props.filters.stockStatus ?? "すべて"], ["category", props.filters.stockCategory ?? "すべて"], ["type", props.filters.stockType ?? "すべて"], ["place", props.filters.stockPlace ?? "すべて"]];
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ soon: true });
   const visibleTasks = props.tasks.filter((task) => props.matches(task, pairs) && props.matchesSearch(task));
-  const stockActions = (task: Task) => <><MoveButtons task={task} moveTask={props.moveTask} /><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><Action subtle onClick={() => props.registerFrequentTask(task)}>よく使う</Action><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>;
+  const stockActions = (task: Task) => compactActions(
+    <Action onClick={() => props.moveTask(task, "今日やる")}>今日やるへ</Action>,
+    <><MoveButtons task={task} moveTask={props.moveTask} hide={["今日やる"]} /><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><Action subtle onClick={() => props.registerFrequentTask(task)}>よく使う</Action><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>,
+  );
   const groups = [
     { key: "soon", title: "近いうち", tasks: visibleTasks.filter((task) => task.status === "近いうち").sort(byDueThenUpdatedDesc) },
     { key: "recent", title: "最近更新", tasks: visibleTasks.filter(isRecentlyUpdatedStockTask).sort(byUpdatedThenCreatedDesc) },
@@ -1296,13 +1312,15 @@ function SearchBox({ value, onChange }: { value: string; onChange: (value: strin
   return <label className="search-box">検索<input value={value} onChange={(event) => onChange(event.target.value)} placeholder="タスクを検索" /></label>;
 }
 
-function TaskList({ tasks, empty, actions, saveTask }: { tasks: Task[]; empty: string; actions: (task: Task) => React.ReactNode; saveTask: (task: Task, draft: TaskDraft) => void }) {
+function TaskList({ tasks, empty, actions, saveTask }: { tasks: Task[]; empty: string; actions: (task: Task) => React.ReactNode | TaskCardActions; saveTask: (task: Task, draft: TaskDraft) => void }) {
   if (tasks.length === 0) return <p className="empty-text">{empty}</p>;
   return <div className="task-grid">{tasks.map((task) => <TaskCard key={task.id} task={task} saveTask={saveTask} actions={actions(task)} />)}</div>;
 }
 
-function TaskCard({ task, actions, saveTask }: { task: Task; actions: React.ReactNode; saveTask: (task: Task, draft: TaskDraft) => void }) {
+function TaskCard({ task, actions, saveTask }: { task: Task; actions: React.ReactNode | TaskCardActions; saveTask: (task: Task, draft: TaskDraft) => void }) {
   const [editing, setEditing] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const actionConfig = isTaskCardActions(actions) ? actions : null;
   return <article className="task-card">
     {editing ? <TaskForm initial={draftFromTask(task)} submitLabel="保存" onSubmit={(draft) => { if (!draft.title.trim()) return false; saveTask(task, draft); setEditing(false); return true; }} onCancel={() => setEditing(false)} allowDone completedAt={task.completedAt} /> : <>
       <div className="chips"><span>{task.type}</span><span>{task.category}</span><span>{task.status}</span></div>
@@ -1310,7 +1328,11 @@ function TaskCard({ task, actions, saveTask }: { task: Task; actions: React.Reac
       <div className="task-meta">{task.dueDate && <span>期限：{task.dueDate}（{dueLabel(task.dueDate)}）</span>}<span>場所：{task.place}</span></div>
       {task.memo && <p className="task-memo">{task.memo}</p>}
       {task.completedAt && <p className="small-note">完了：{task.completedAt.slice(0, 10)}</p>}
-      <div className="button-row">{actions}<Action onClick={() => setEditing(true)}>編集</Action></div>
+      {actionConfig ? <div className="task-card-actions">
+        <div className="button-row primary-actions">{actionConfig.primary}<Action onClick={() => setEditing(true)}>編集</Action></div>
+        {actionConfig.secondary && <button className="more-actions-toggle" type="button" onClick={() => setMoreOpen((current) => !current)} aria-expanded={moreOpen}>{moreOpen ? "その他を閉じる" : "その他を開く"}</button>}
+        {moreOpen && actionConfig.secondary && <div className="button-row secondary-actions">{actionConfig.secondary}</div>}
+      </div> : <div className="button-row">{actions as React.ReactNode}<Action onClick={() => setEditing(true)}>編集</Action></div>}
     </>}
   </article>;
 }

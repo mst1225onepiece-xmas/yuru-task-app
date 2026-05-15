@@ -53,6 +53,10 @@ h2, h3, p { margin-top: 0; overflow-wrap: anywhere; }
 .task-memo { margin: 0; white-space: pre-wrap; color: #3f4c47; line-height: 1.65; }
 .small-note, .empty-text { color: #65716c; line-height: 1.65; margin-bottom: 0; }
 .button-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.task-card-actions { display: grid; gap: 0.5rem; }
+.primary-actions button { flex: 1 1 120px; }
+.more-actions-toggle { width: 100%; min-height: 40px; padding: 0.5rem 0.75rem; background: #fbfcfb; border-color: #d7e1db; font-weight: 750; }
+.secondary-actions { padding-top: 0.15rem; }
 .primary-button { background: #2f5d50; color: #ffffff; border-color: #2f5d50; font-weight: 750; }
 .today-actions { display: grid; gap: 0.55rem; margin-bottom: 0.9rem; }
 .add-task-button { width: 100%; min-height: 50px; font-size: 1.02rem; }
@@ -106,6 +110,8 @@ h2, h3, p { margin-top: 0; overflow-wrap: anywhere; }
   .bottom-nav { width: min(100% - 0.75rem, 520px); gap: 0.3rem; padding: 0.45rem; border-radius: 12px; }
   .bottom-nav button { min-height: 44px; padding: 0.5rem 0.2rem; }
   .button-row button { flex: 1 1 135px; }
+  .primary-actions button { flex-basis: calc(50% - 0.25rem); }
+  .secondary-actions button { flex-basis: calc(50% - 0.25rem); }
   .stock-search-row { grid-template-columns: 1fr; }
   .stock-filter-grid { grid-template-columns: 1fr; }
   .stock-filter-toggle { justify-content: center; flex-wrap: wrap; }
