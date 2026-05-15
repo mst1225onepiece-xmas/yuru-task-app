@@ -68,6 +68,13 @@ h2, h3, p { margin-top: 0; overflow-wrap: anywhere; }
 .stock-search-row input, .compact-search-row input, .stock-filter-grid select, .done-filter-grid select { min-width: 0; padding: 0.62rem 0.55rem; }
 .stock-filter-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
 .stock-groups { display: grid; gap: 0.75rem; }
+.enjoyment-inventory { display: grid; gap: 0.55rem; background: #f7fbf8; border-color: #cfe0d6; box-shadow: 0 8px 22px rgba(52, 68, 60, 0.05); }
+.enjoyment-trigger { min-height: 44px; padding: 0.6rem 0.75rem; background: #ffffff; border-color: #d5e3da; color: #2f5d50; }
+.enjoyment-summary { margin: 0; color: #52645d; font-size: 0.94rem; line-height: 1.6; overflow-wrap: anywhere; }
+.enjoyment-details { display: grid; gap: 0.6rem; padding-top: 0.2rem; }
+.enjoyment-detail { display: grid; gap: 0.3rem; padding: 0.65rem 0.75rem; border: 1px solid #dce7e0; border-radius: 8px; background: #ffffff; }
+.enjoyment-detail h3 { margin: 0; color: #2f5d50; font-size: 1rem; }
+.enjoyment-detail ul { margin: 0; padding-left: 1.25rem; color: #5d6d67; line-height: 1.65; }
 .done-filter-panel { display: grid; gap: 0.65rem; }
 .done-filter-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
 .done-groups { display: grid; gap: 0.75rem; }

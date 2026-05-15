@@ -94,6 +94,17 @@ type VisibleRecurringTask = {
   targetDate: string;
 };
 
+type EnjoymentInventoryItem = {
+  taskId: string;
+  title: string;
+  dates: string[];
+};
+
+type EnjoymentInventory = {
+  total: number;
+  items: EnjoymentInventoryItem[];
+};
+
 type DoneDisplayItem =
   | { kind: "task"; id: string; completedDate: string; completedAt: string; task: Task }
   | { kind: "recurring"; id: string; completedDate: string; completedAt: string; completion: RecurringCompletion };
@@ -384,6 +395,31 @@ function visibleRecurringTasks(data: AppData) {
     .sort((a, b) => a.targetDate.localeCompare(b.targetDate) || a.task.createdAt.localeCompare(b.task.createdAt));
 }
 
+function recurringTaskMatchesDate(task: RecurringTask, date: Date) {
+  if (!task.isActive) return false;
+  if (task.repeatType === "weekly") return task.weekday !== null && date.getDay() === task.weekday;
+  if (task.monthDay === null) return false;
+  return dateKeyFromDate(monthlyTargetDate(date, 0, task.monthDay)) === dateKeyFromDate(date);
+}
+
+function enjoymentInventory(data: AppData, today = todayKey()): EnjoymentInventory {
+  const todayDate = dateFromKey(today);
+  const startDate = addDays(todayDate, -29);
+  const completedKeys = new Set(data.recurringCompletions.map((completion) => `${completion.recurringTaskId}:${completion.targetDate}`));
+  const items = data.recurringTasks
+    .filter((task) => task.kind === "楽しみ" && task.isActive)
+    .map((task) => {
+      const dates = Array.from({ length: 30 }, (_, index) => addDays(startDate, index))
+        .filter((date) => recurringTaskMatchesDate(task, date))
+        .map(dateKeyFromDate)
+        .filter((targetDate) => !completedKeys.has(`${task.id}:${targetDate}`));
+      return { taskId: task.id, title: task.title, dates };
+    })
+    .filter((item) => item.dates.length > 0)
+    .sort((a, b) => a.title.localeCompare(b.title, "ja") || a.taskId.localeCompare(b.taskId));
+  return { total: items.reduce((sum, item) => sum + item.dates.length, 0), items };
+}
+
 function completedRecurringToday(data: AppData) {
   return data.recurringCompletions.filter((completion) => toDateKey(completion.completedAt) === todayKey()).sort((a, b) => b.completedAt.localeCompare(a.completedAt));
 }
@@ -480,6 +516,7 @@ function App() {
   const doneTasks = tasks.filter((task) => task.status === "完了").sort(byCompletedDesc);
   const recurringTodayTasks = visibleRecurringTasks(data);
   const recurringCompletedToday = completedRecurringToday(data);
+  const stockEnjoymentInventory = enjoymentInventory(data);
   const matchesSearch = (task: Task) => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return true;
@@ -720,7 +757,7 @@ function App() {
 
       <main>
         {activeTab === "今日" && <TodayView todayTasks={todayTasks} nearDueTasks={nearDueTasks} recurringTodayTasks={recurringTodayTasks} completedTodayTasks={completedTodayTasks} recurringCompletedToday={recurringCompletedToday} waitingContactTasks={waitingContactTasks} addTask={addTask} saveTask={saveTask} moveTask={moveTask} undoComplete={undoComplete} completeRecurringTask={completeRecurringTask} requestDelete={setDeleteTarget} copyKeepText={copyKeepText} />}
-        {activeTab === "ストック" && <StockView tasks={stockTasks} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} saveTask={saveTask} moveTask={moveTask} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
+        {activeTab === "ストック" && <StockView tasks={stockTasks} enjoymentInventory={stockEnjoymentInventory} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} saveTask={saveTask} moveTask={moveTask} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
         {activeTab === "完了" && <DoneView tasks={doneTasks} recurringCompletions={data.recurringCompletions} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} saveTask={saveTask} undoComplete={undoComplete} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
         {activeTab === "設定" && <SettingsView data={data} exportJson={exportJson} parseImport={parseImport} fileInputRef={fileInputRef} importError={importError} addRecurringTask={addRecurringTask} saveRecurringTask={saveRecurringTask} setRecurringActive={setRecurringActive} requestRecurringDelete={setRecurringDeleteTarget} />}
       </main>
@@ -813,7 +850,7 @@ function TodayView(props: {
   </div>;
 }
 
-function StockView(props: SharedProps & SearchProps & { tasks: Task[]; filters: Record<string, FilterValue>; setFilters: (filters: Record<string, FilterValue>) => void }) {
+function StockView(props: SharedProps & SearchProps & { tasks: Task[]; enjoymentInventory: EnjoymentInventory; filters: Record<string, FilterValue>; setFilters: (filters: Record<string, FilterValue>) => void }) {
   const pairs: [string, string][] = [["status", props.filters.stockStatus ?? "すべて"], ["category", props.filters.stockCategory ?? "すべて"], ["type", props.filters.stockType ?? "すべて"], ["place", props.filters.stockPlace ?? "すべて"]];
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ soon: true });
   const visibleTasks = props.tasks.filter((task) => props.matches(task, pairs) && props.matchesSearch(task));
@@ -833,11 +870,31 @@ function StockView(props: SharedProps & SearchProps & { tasks: Task[]; filters: 
     <Section title="ストック" description="あとで拾いたいタスクを置く場所です。" />
     <Section title="絞り込み"><StockFilterPanel searchQuery={props.searchQuery} setSearchQuery={props.setSearchQuery} filters={props.filters} setFilters={props.setFilters} /></Section>
     <div className="stock-groups">
+      <EnjoymentInventoryCard inventory={props.enjoymentInventory} />
       {groups.map((group) => <CollapsibleSection key={group.key} title={group.title} count={group.tasks.length} isOpen={Boolean(openGroups[group.key])} onToggle={() => toggleGroup(group.key)}>
         <TaskList empty={`${group.title}のタスクはありません。`} tasks={group.tasks} actions={stockActions} saveTask={props.saveTask} />
       </CollapsibleSection>)}
     </div>
   </div>;
+}
+
+function EnjoymentInventoryCard({ inventory }: { inventory: EnjoymentInventory }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const summary = inventory.items.length > 0 ? inventory.items.map((item) => `${item.title}${item.dates.length}`).join(" / ") : "楽しみの在庫は今はありません";
+  return <section className="section enjoyment-inventory">
+    <button className="collapse-trigger enjoyment-trigger" type="button" onClick={() => setIsOpen((current) => !current)} aria-expanded={isOpen}>
+      <span className="collapse-title"><span aria-hidden="true">{isOpen ? "▼" : "▶"}</span>楽しみ在庫<span className="collapse-count">合計{inventory.total}件</span></span>
+    </button>
+    <p className="enjoyment-summary">{summary}</p>
+    {isOpen && <div className="enjoyment-details">
+      {inventory.items.length === 0 ? <p className="empty-text">過去30日分で、未完了の楽しみ系繰り返しタスクはありません。</p> : inventory.items.map((item) => <div className="enjoyment-detail" key={item.taskId}>
+        <h3>{item.title}</h3>
+        <ul>
+          {item.dates.map((date) => <li key={date}>{date} 分</li>)}
+        </ul>
+      </div>)}
+    </div>}
+  </section>;
 }
 
 function StockFilterPanel({ searchQuery, setSearchQuery, filters, setFilters }: SearchProps & { filters: Record<string, FilterValue>; setFilters: (filters: Record<string, FilterValue>) => void }) {
