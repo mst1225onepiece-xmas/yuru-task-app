@@ -95,7 +95,7 @@ type VisibleRecurringTask = {
 };
 
 type EnjoymentInventoryItem = {
-  taskId: string;
+  task: RecurringTask;
   title: string;
   dates: string[];
 };
@@ -413,10 +413,10 @@ function enjoymentInventory(data: AppData, today = todayKey()): EnjoymentInvento
         .filter((date) => recurringTaskMatchesDate(task, date))
         .map(dateKeyFromDate)
         .filter((targetDate) => !completedKeys.has(`${task.id}:${targetDate}`));
-      return { taskId: task.id, title: task.title, dates };
+      return { task, title: task.title, dates };
     })
     .filter((item) => item.dates.length > 0)
-    .sort((a, b) => a.title.localeCompare(b.title, "ja") || a.taskId.localeCompare(b.taskId));
+    .sort((a, b) => a.title.localeCompare(b.title, "ja") || a.task.id.localeCompare(b.task.id));
   return { total: items.reduce((sum, item) => sum + item.dates.length, 0), items };
 }
 
@@ -631,20 +631,31 @@ function App() {
     setNotice(isActive ? "繰り返しタスクを再開しました。" : "繰り返しタスクを停止しました。");
   }
 
-  function completeRecurringTask(item: VisibleRecurringTask) {
+  function addRecurringCompletion(task: RecurringTask, targetDate: string, noticeText: string) {
     const time = nowIso();
     const completion: RecurringCompletion = {
       id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
-      recurringTaskId: item.task.id,
-      targetDate: item.targetDate,
+      recurringTaskId: task.id,
+      targetDate,
       completedAt: time,
-      titleSnapshot: item.task.title,
-      categorySnapshot: item.task.category,
-      kindSnapshot: item.task.kind,
+      titleSnapshot: task.title,
+      categorySnapshot: task.category,
+      kindSnapshot: task.kind,
     };
     setSaveBlocked(false);
-    setData((current) => ({ ...current, recurringCompletions: [completion, ...current.recurringCompletions] }));
-    setNotice("今回分を完了しました。");
+    setData((current) => {
+      const alreadyCompleted = current.recurringCompletions.some((item) => item.recurringTaskId === task.id && item.targetDate === targetDate);
+      return alreadyCompleted ? current : { ...current, recurringCompletions: [completion, ...current.recurringCompletions] };
+    });
+    setNotice(noticeText);
+  }
+
+  function completeRecurringTask(item: VisibleRecurringTask) {
+    addRecurringCompletion(item.task, item.targetDate, "今回分を完了しました。");
+  }
+
+  function enjoyInventoryItem(task: RecurringTask, targetDate: string) {
+    addRecurringCompletion(task, targetDate, "楽しみ在庫を1回分楽しみました。");
   }
 
   function confirmRecurringDelete() {
@@ -757,7 +768,7 @@ function App() {
 
       <main>
         {activeTab === "今日" && <TodayView todayTasks={todayTasks} nearDueTasks={nearDueTasks} recurringTodayTasks={recurringTodayTasks} completedTodayTasks={completedTodayTasks} recurringCompletedToday={recurringCompletedToday} waitingContactTasks={waitingContactTasks} addTask={addTask} saveTask={saveTask} moveTask={moveTask} undoComplete={undoComplete} completeRecurringTask={completeRecurringTask} requestDelete={setDeleteTarget} copyKeepText={copyKeepText} />}
-        {activeTab === "ストック" && <StockView tasks={stockTasks} enjoymentInventory={stockEnjoymentInventory} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} saveTask={saveTask} moveTask={moveTask} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
+        {activeTab === "ストック" && <StockView tasks={stockTasks} enjoymentInventory={stockEnjoymentInventory} enjoyInventoryItem={enjoyInventoryItem} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} saveTask={saveTask} moveTask={moveTask} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
         {activeTab === "完了" && <DoneView tasks={doneTasks} recurringCompletions={data.recurringCompletions} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} saveTask={saveTask} undoComplete={undoComplete} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
         {activeTab === "設定" && <SettingsView data={data} exportJson={exportJson} parseImport={parseImport} fileInputRef={fileInputRef} importError={importError} addRecurringTask={addRecurringTask} saveRecurringTask={saveRecurringTask} setRecurringActive={setRecurringActive} requestRecurringDelete={setRecurringDeleteTarget} />}
       </main>
@@ -850,7 +861,7 @@ function TodayView(props: {
   </div>;
 }
 
-function StockView(props: SharedProps & SearchProps & { tasks: Task[]; enjoymentInventory: EnjoymentInventory; filters: Record<string, FilterValue>; setFilters: (filters: Record<string, FilterValue>) => void }) {
+function StockView(props: SharedProps & SearchProps & { tasks: Task[]; enjoymentInventory: EnjoymentInventory; enjoyInventoryItem: (task: RecurringTask, targetDate: string) => void; filters: Record<string, FilterValue>; setFilters: (filters: Record<string, FilterValue>) => void }) {
   const pairs: [string, string][] = [["status", props.filters.stockStatus ?? "すべて"], ["category", props.filters.stockCategory ?? "すべて"], ["type", props.filters.stockType ?? "すべて"], ["place", props.filters.stockPlace ?? "すべて"]];
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ soon: true });
   const visibleTasks = props.tasks.filter((task) => props.matches(task, pairs) && props.matchesSearch(task));
@@ -870,7 +881,7 @@ function StockView(props: SharedProps & SearchProps & { tasks: Task[]; enjoyment
     <Section title="ストック" description="あとで拾いたいタスクを置く場所です。" />
     <Section title="絞り込み"><StockFilterPanel searchQuery={props.searchQuery} setSearchQuery={props.setSearchQuery} filters={props.filters} setFilters={props.setFilters} /></Section>
     <div className="stock-groups">
-      <EnjoymentInventoryCard inventory={props.enjoymentInventory} />
+      <EnjoymentInventoryCard inventory={props.enjoymentInventory} enjoyInventoryItem={props.enjoyInventoryItem} />
       {groups.map((group) => <CollapsibleSection key={group.key} title={group.title} count={group.tasks.length} isOpen={Boolean(openGroups[group.key])} onToggle={() => toggleGroup(group.key)}>
         <TaskList empty={`${group.title}のタスクはありません。`} tasks={group.tasks} actions={stockActions} saveTask={props.saveTask} />
       </CollapsibleSection>)}
@@ -878,20 +889,23 @@ function StockView(props: SharedProps & SearchProps & { tasks: Task[]; enjoyment
   </div>;
 }
 
-function EnjoymentInventoryCard({ inventory }: { inventory: EnjoymentInventory }) {
+function EnjoymentInventoryCard({ inventory, enjoyInventoryItem }: { inventory: EnjoymentInventory; enjoyInventoryItem: (task: RecurringTask, targetDate: string) => void }) {
   const [isOpen, setIsOpen] = useState(false);
-  const summary = inventory.items.length > 0 ? inventory.items.map((item) => `${item.title}${item.dates.length}`).join(" / ") : "楽しみの在庫は今はありません";
+  const summary = inventory.items.length > 0 ? inventory.items.map((item) => `${item.title}${item.dates.length}`).join(" / ") : "今のところ、楽しみ在庫はありません。";
   return <section className="section enjoyment-inventory">
     <button className="collapse-trigger enjoyment-trigger" type="button" onClick={() => setIsOpen((current) => !current)} aria-expanded={isOpen}>
       <span className="collapse-title"><span aria-hidden="true">{isOpen ? "▼" : "▶"}</span>楽しみ在庫<span className="collapse-count">合計{inventory.total}件</span></span>
     </button>
     <p className="enjoyment-summary">{summary}</p>
     {isOpen && <div className="enjoyment-details">
-      {inventory.items.length === 0 ? <p className="empty-text">過去30日分で、未完了の楽しみ系繰り返しタスクはありません。</p> : inventory.items.map((item) => <div className="enjoyment-detail" key={item.taskId}>
+      {inventory.items.length === 0 ? <p className="empty-text">過去30日分で、未完了の楽しみ系繰り返しタスクはありません。</p> : inventory.items.map((item) => <div className="enjoyment-detail" key={item.task.id}>
         <h3>{item.title}</h3>
-        <ul>
-          {item.dates.map((date) => <li key={date}>{date} 分</li>)}
-        </ul>
+        <div className="enjoyment-date-list">
+          {item.dates.map((date) => <div className="enjoyment-date-row" key={date}>
+            <span>{date} 分</span>
+            <button className="enjoyment-done-button" type="button" onClick={() => enjoyInventoryItem(item.task, date)}>楽しんだ</button>
+          </div>)}
+        </div>
       </div>)}
     </div>}
   </section>;
