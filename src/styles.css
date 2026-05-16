@@ -53,6 +53,10 @@ h2, h3, p { margin-top: 0; overflow-wrap: anywhere; }
 .task-memo { margin: 0; white-space: pre-wrap; color: #3f4c47; line-height: 1.65; }
 .small-note, .empty-text { color: #65716c; line-height: 1.65; margin-bottom: 0; }
 .button-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.data-actions { display: grid; gap: 0.75rem; }
+.data-action-block { display: grid; gap: 0.35rem; padding: 0.75rem; border: 1px solid #dce4df; border-radius: 8px; background: #fbfcfb; }
+.data-action-block button { width: 100%; }
+.danger-import-block { background: #fff8f6; border-color: #e7ccc4; }
 .task-card-actions { display: grid; gap: 0.5rem; }
 .primary-actions button { flex: 1 1 120px; }
 .more-actions-toggle { width: 100%; min-height: 40px; padding: 0.5rem 0.75rem; background: #fbfcfb; border-color: #d7e1db; font-weight: 750; }
@@ -98,6 +102,14 @@ h2, h3, p { margin-top: 0; overflow-wrap: anywhere; }
 .dialog-backdrop { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 1rem; background: rgba(30, 42, 37, 0.36); }
 .dialog { width: min(460px, 100%); background: #ffffff; border-radius: 8px; padding: 1.2rem; box-shadow: 0 24px 60px rgba(17, 28, 24, 0.24); }
 .dialog p { line-height: 1.7; color: #56635e; }
+.append-import-dialog { width: min(620px, 100%); }
+.import-preview-list { display: grid; gap: 0.65rem; margin: 0.9rem 0; }
+.import-preview-item { display: grid; gap: 0.45rem; padding: 0.75rem; border: 1px solid #dce4df; border-radius: 8px; background: #fbfcfb; }
+.import-preview-item h3 { margin: 0; font-size: 1rem; }
+.import-preview-item dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; margin: 0; }
+.import-preview-item div { display: grid; gap: 0.15rem; }
+.import-preview-item dt { color: #65716c; font-size: 0.82rem; }
+.import-preview-item dd { margin: 0; font-weight: 800; }
 
 @media (min-width: 760px) {
   .app-shell { padding: 1.5rem 1.5rem calc(7rem + env(safe-area-inset-bottom)); }

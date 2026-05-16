@@ -137,6 +137,18 @@ type DoneGroup = {
   items: DoneDisplayItem[];
 };
 
+type ImportCount = {
+  label: string;
+  loaded: number;
+  added: number;
+  skipped: number;
+};
+
+type AppendImportPreview = {
+  data: AppData;
+  counts: ImportCount[];
+};
+
 const TASK_TYPES: TaskType[] = ["やるべきこと", "やりたいこと", "思いつき"];
 const TASK_STATUSES: TaskStatus[] = ["今日やる", "近いうち", "いつかやる", "連絡待ち", "保留", "完了"];
 const ACTIVE_TASK_CATEGORIES: ActiveTaskCategory[] = ["生活", "仕事", "お金", "人・連絡", "趣味", "開発", "SNS", "その他"];
@@ -427,6 +439,52 @@ function frequentTaskMatches(task: FrequentTask, draft: FrequentTaskDraft) {
   return task.title === draft.title.trim() && task.category === draft.category && task.type === draft.type && task.place === draft.place;
 }
 
+function frequentTaskKey(task: FrequentTask) {
+  return `${task.title}\u0000${task.category}\u0000${task.type}\u0000${task.place}`;
+}
+
+function recurringCompletionKey(completion: RecurringCompletion) {
+  return `${completion.recurringTaskId}\u0000${completion.targetDate}`;
+}
+
+function uniqueByKey<T>(incoming: T[], existingKeys: Set<string>, keyOf: (item: T) => string) {
+  const added: T[] = [];
+  let skipped = 0;
+  incoming.forEach((item) => {
+    const key = keyOf(item);
+    if (existingKeys.has(key)) {
+      skipped += 1;
+      return;
+    }
+    existingKeys.add(key);
+    added.push(item);
+  });
+  return { added, skipped };
+}
+
+function buildAppendImportPreview(current: AppData, incoming: AppData): AppendImportPreview {
+  const tasks = uniqueByKey(incoming.tasks, new Set(current.tasks.map((task) => task.id)), (task) => task.id);
+  const frequentTasks = uniqueByKey(incoming.frequentTasks, new Set(current.frequentTasks.map(frequentTaskKey)), frequentTaskKey);
+  const recurringTasks = uniqueByKey(incoming.recurringTasks, new Set(current.recurringTasks.map((task) => task.id)), (task) => task.id);
+  const recurringCompletions = uniqueByKey(incoming.recurringCompletions, new Set(current.recurringCompletions.map(recurringCompletionKey)), recurringCompletionKey);
+  return {
+    data: {
+      ...current,
+      tasks: [...tasks.added, ...current.tasks],
+      frequentTasks: [...frequentTasks.added, ...current.frequentTasks],
+      recurringTasks: [...recurringTasks.added, ...current.recurringTasks],
+      recurringCompletions: [...recurringCompletions.added, ...current.recurringCompletions],
+      settings: current.settings,
+    },
+    counts: [
+      { label: "通常タスク", loaded: incoming.tasks.length, added: tasks.added.length, skipped: tasks.skipped },
+      { label: "よく使うタスク", loaded: incoming.frequentTasks.length, added: frequentTasks.added.length, skipped: frequentTasks.skipped },
+      { label: "繰り返しタスク", loaded: incoming.recurringTasks.length, added: recurringTasks.added.length, skipped: recurringTasks.skipped },
+      { label: "繰り返し完了履歴", loaded: incoming.recurringCompletions.length, added: recurringCompletions.added.length, skipped: recurringCompletions.skipped },
+    ],
+  };
+}
+
 function draftFromTask(task: Task): TaskDraft {
   return {
     title: task.title,
@@ -611,11 +669,13 @@ function App() {
   const [recurringDeleteTarget, setRecurringDeleteTarget] = useState<RecurringTask | null>(null);
   const [frequentDeleteTarget, setFrequentDeleteTarget] = useState<FrequentTask | null>(null);
   const [importData, setImportData] = useState<AppData | null>(null);
+  const [appendImportPreview, setAppendImportPreview] = useState<AppendImportPreview | null>(null);
   const [importError, setImportError] = useState("");
   const [filters, setFilters] = useState<Record<string, FilterValue>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [saveBlocked, setSaveBlocked] = useState(Boolean(loaded.error));
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const appendFileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (saveBlocked) return;
@@ -903,12 +963,38 @@ function App() {
     event.target.value = "";
   }
 
+  function parseAppendImport(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setImportError("");
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result));
+        if (!isAppData(parsed)) throw new Error("Invalid JSON");
+        setAppendImportPreview(buildAppendImportPreview(data, normalizeData(parsed)));
+      } catch {
+        setImportError("JSONを読み込めませんでした。ファイル形式を確認してください。");
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = "";
+  }
+
   function doImport() {
     if (!importData) return;
     setSaveBlocked(false);
     setData(importData);
     setImportData(null);
     setNotice("JSONから復元しました。");
+  }
+
+  function doAppendImport() {
+    if (!appendImportPreview) return;
+    setSaveBlocked(false);
+    setData(appendImportPreview.data);
+    setAppendImportPreview(null);
+    setNotice("JSONを追加インポートしました。");
   }
 
   function matches(task: Task, pairs: [string, string][]) {
@@ -942,7 +1028,7 @@ function App() {
         {activeTab === "今日" && <TodayView todayTasks={todayTasks} nearDueTasks={nearDueTasks} recurringTodayTasks={recurringTodayTasks} completedTodayTasks={completedTodayTasks} recurringCompletedToday={recurringCompletedToday} waitingContactTasks={waitingContactTasks} addTask={addTask} saveTask={saveTask} moveTask={moveTask} undoComplete={undoComplete} completeRecurringTask={completeRecurringTask} registerFrequentTask={registerFrequentTask} requestDelete={setDeleteTarget} copyKeepText={copyKeepText} />}
         {activeTab === "ストック" && <StockView tasks={stockTasks} enjoymentInventory={stockEnjoymentInventory} enjoyInventoryItem={enjoyInventoryItem} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} saveTask={saveTask} moveTask={moveTask} registerFrequentTask={registerFrequentTask} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
         {activeTab === "完了" && <DoneView tasks={doneTasks} recurringCompletions={data.recurringCompletions} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} saveTask={saveTask} undoComplete={undoComplete} registerFrequentTask={registerFrequentTask} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
-        {activeTab === "設定" && <SettingsView data={data} exportJson={exportJson} parseImport={parseImport} fileInputRef={fileInputRef} importError={importError} addTaskFromFrequentTask={addTaskFromFrequentTask} saveFrequentTask={saveFrequentTask} requestFrequentDelete={setFrequentDeleteTarget} addRecurringTask={addRecurringTask} saveRecurringTask={saveRecurringTask} setRecurringActive={setRecurringActive} requestRecurringDelete={setRecurringDeleteTarget} />}
+        {activeTab === "設定" && <SettingsView data={data} exportJson={exportJson} parseImport={parseImport} parseAppendImport={parseAppendImport} fileInputRef={fileInputRef} appendFileInputRef={appendFileInputRef} importError={importError} addTaskFromFrequentTask={addTaskFromFrequentTask} saveFrequentTask={saveFrequentTask} requestFrequentDelete={setFrequentDeleteTarget} addRecurringTask={addRecurringTask} saveRecurringTask={saveRecurringTask} setRecurringActive={setRecurringActive} requestRecurringDelete={setRecurringDeleteTarget} />}
       </main>
 
       {deleteTarget && (
@@ -955,7 +1041,10 @@ function App() {
         <ConfirmDialog title="このよく使うタスクを削除しますか？" body="作成済みの通常タスクは削除されません。" confirmLabel="削除する" onConfirm={confirmFrequentDelete} onCancel={() => setFrequentDeleteTarget(null)} />
       )}
       {importData && (
-        <ConfirmDialog title="JSONインポート" body="現在のタスクデータを、選択したJSONファイルの内容で置き換えます。必要なら先に現在のデータをエクスポートしてください。" confirmLabel="インポートする" onConfirm={doImport} onCancel={() => setImportData(null)} />
+        <ConfirmDialog title="JSONで全上書き" body="現在のデータは、選択したJSONの内容で全て置き換わります。復元用の操作です。実行前に必ずJSONエクスポートでバックアップしてください。" confirmLabel="全上書きする" onConfirm={doImport} onCancel={() => setImportData(null)} />
+      )}
+      {appendImportPreview && (
+        <AppendImportDialog preview={appendImportPreview} onConfirm={doAppendImport} onCancel={() => setAppendImportPreview(null)} />
       )}
     </div>
   );
@@ -1323,13 +1412,27 @@ function FrequentTaskForm({ initial, submitLabel, onSubmit, onCancel }: { initia
   </form>;
 }
 
-function SettingsView({ data, exportJson, parseImport, fileInputRef, importError, addTaskFromFrequentTask, saveFrequentTask, requestFrequentDelete, addRecurringTask, saveRecurringTask, setRecurringActive, requestRecurringDelete }: { data: AppData; exportJson: () => void; parseImport: (event: ChangeEvent<HTMLInputElement>) => void; fileInputRef: React.MutableRefObject<HTMLInputElement | null>; importError: string; addTaskFromFrequentTask: (task: FrequentTask) => void; saveFrequentTask: (task: FrequentTask, draft: FrequentTaskDraft) => boolean; requestFrequentDelete: (task: FrequentTask) => void; addRecurringTask: (draft: RecurringDraft) => boolean; saveRecurringTask: (task: RecurringTask, draft: RecurringDraft) => void; setRecurringActive: (task: RecurringTask, isActive: boolean) => void; requestRecurringDelete: (task: RecurringTask) => void }) {
+function SettingsView({ data, exportJson, parseImport, parseAppendImport, fileInputRef, appendFileInputRef, importError, addTaskFromFrequentTask, saveFrequentTask, requestFrequentDelete, addRecurringTask, saveRecurringTask, setRecurringActive, requestRecurringDelete }: { data: AppData; exportJson: () => void; parseImport: (event: ChangeEvent<HTMLInputElement>) => void; parseAppendImport: (event: ChangeEvent<HTMLInputElement>) => void; fileInputRef: React.MutableRefObject<HTMLInputElement | null>; appendFileInputRef: React.MutableRefObject<HTMLInputElement | null>; importError: string; addTaskFromFrequentTask: (task: FrequentTask) => void; saveFrequentTask: (task: FrequentTask, draft: FrequentTaskDraft) => boolean; requestFrequentDelete: (task: FrequentTask) => void; addRecurringTask: (draft: RecurringDraft) => boolean; saveRecurringTask: (task: RecurringTask, draft: RecurringDraft) => void; setRecurringActive: (task: RecurringTask, isActive: boolean) => void; requestRecurringDelete: (task: RecurringTask) => void }) {
   const [recurringOpen, setRecurringOpen] = useState(false);
   const [frequentOpen, setFrequentOpen] = useState(false);
   return <div className="view-stack">
     <Section title="データ管理" description="バックアップ、別端末への移動、不具合時の復元に使います。">
       <p className="small-note">実運用前や大きく整理する前は、JSONエクスポートでバックアップを残しておくと安心です。</p>
-      <div className="button-row"><button className="primary-button" onClick={exportJson}>JSONエクスポート</button><button onClick={() => fileInputRef.current?.click()}>JSONインポート</button></div>
+      <div className="data-actions">
+        <div className="data-action-block">
+          <button className="primary-button" onClick={exportJson}>JSONエクスポート</button>
+          <p className="small-note">現在のデータ全体をバックアップします。</p>
+        </div>
+        <div className="data-action-block">
+          <button onClick={() => appendFileInputRef.current?.click()}>JSONを追加インポート</button>
+          <p className="small-note">既存データを残して、JSON内の新しいデータだけ追加します。普段はこちらを使います。</p>
+        </div>
+        <div className="data-action-block danger-import-block">
+          <button className="danger-button" onClick={() => fileInputRef.current?.click()}>JSONで全上書き</button>
+          <p className="small-note">現在のデータを選択したJSONの内容で置き換えます。復元用です。実行前に必ずJSONエクスポートでバックアップしてください。</p>
+        </div>
+      </div>
+      <input ref={appendFileInputRef} type="file" accept="application/json,.json" hidden onChange={parseAppendImport} />
       <input ref={fileInputRef} type="file" accept="application/json,.json" hidden onChange={parseImport} />
       {importError && <p className="form-error">{importError}</p>}
     </Section>
@@ -1437,6 +1540,24 @@ function FixedList({ title, items }: { title: string; items: readonly string[] }
 
 function ConfirmDialog({ title, body, confirmLabel, onConfirm, onCancel }: { title: string; body: string; confirmLabel: string; onConfirm: () => void; onCancel: () => void }) {
   return <div className="dialog-backdrop" role="presentation"><div className="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title"><h2 id="dialog-title">{title}</h2><p>{body}</p><div className="button-row"><button className="danger-button" onClick={onConfirm}>{confirmLabel}</button><button onClick={onCancel}>キャンセル</button></div></div></div>;
+}
+
+function AppendImportDialog({ preview, onConfirm, onCancel }: { preview: AppendImportPreview; onConfirm: () => void; onCancel: () => void }) {
+  return <div className="dialog-backdrop" role="presentation"><div className="dialog append-import-dialog" role="dialog" aria-modal="true" aria-labelledby="append-import-title">
+    <h2 id="append-import-title">JSONを追加インポート</h2>
+    <p>既存データを残して、新しいデータだけ追加します。設定は現在のものを維持します。</p>
+    <div className="import-preview-list">
+      {preview.counts.map((count) => <div className="import-preview-item" key={count.label}>
+        <h3>{count.label}</h3>
+        <dl>
+          <div><dt>読み込み</dt><dd>{count.loaded}件</dd></div>
+          <div><dt>新規追加</dt><dd>{count.added}件</dd></div>
+          <div><dt>重複スキップ</dt><dd>{count.skipped}件</dd></div>
+        </dl>
+      </div>)}
+    </div>
+    <div className="button-row"><button className="primary-button" onClick={onConfirm}>追加インポートする</button><button onClick={onCancel}>キャンセル</button></div>
+  </div></div>;
 }
 
 export default App;
