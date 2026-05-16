@@ -218,8 +218,31 @@ const byDueThenUpdatedDesc = (a: Task, b: Task) => {
   if (bHasDue) return 1;
   return byUpdatedThenCreatedDesc(a, b);
 };
+const indexOrAfter = <T extends string>(list: readonly T[], value: string) => {
+  const index = list.indexOf(value as T);
+  return index >= 0 ? index : list.length;
+};
 const repeatTypeLabel = (repeatType: RepeatType) => repeatType === "weekly" ? "毎週" : "毎月";
 const recurringInfo = (task: RecurringTask) => task.repeatType === "weekly" ? `毎週 ${WEEKDAYS[task.weekday ?? 0]}` : `毎月 ${task.monthDay}日`;
+
+function byRecurringManageOrder(a: RecurringTask, b: RecurringTask) {
+  if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+  if (a.repeatType !== b.repeatType) return a.repeatType === "weekly" ? -1 : 1;
+  if (a.repeatType === "weekly") {
+    const weekdayDiff = (a.weekday ?? 7) - (b.weekday ?? 7);
+    if (weekdayDiff !== 0) return weekdayDiff;
+  } else {
+    const monthDayDiff = (a.monthDay ?? 32) - (b.monthDay ?? 32);
+    if (monthDayDiff !== 0) return monthDayDiff;
+  }
+  return a.title.localeCompare(b.title, "ja");
+}
+
+function byFrequentTaskManageOrder(a: FrequentTask, b: FrequentTask) {
+  return indexOrAfter(ACTIVE_TASK_CATEGORIES, a.category) - indexOrAfter(ACTIVE_TASK_CATEGORIES, b.category)
+    || indexOrAfter(TASK_TYPES, a.type) - indexOrAfter(TASK_TYPES, b.type)
+    || a.title.localeCompare(b.title, "ja");
+}
 
 function isOneOf<T extends string>(value: unknown, list: readonly T[]): value is T {
   return typeof value === "string" && list.includes(value as T);
@@ -1164,13 +1187,14 @@ function RecurringCompletionList({ completions }: { completions: RecurringComple
 }
 
 function RecurringTaskManager({ tasks, addRecurringTask, saveRecurringTask, setRecurringActive, requestRecurringDelete }: { tasks: RecurringTask[]; addRecurringTask: (draft: RecurringDraft) => boolean; saveRecurringTask: (task: RecurringTask, draft: RecurringDraft) => void; setRecurringActive: (task: RecurringTask, isActive: boolean) => void; requestRecurringDelete: (task: RecurringTask) => void }) {
+  const sortedTasks = [...tasks].sort(byRecurringManageOrder);
   return <div className="recurring-manager">
     <div className="manager-block">
       <h3>繰り返しを追加</h3>
       <RecurringTaskForm initial={newRecurringDraft()} submitLabel="追加する" onSubmit={addRecurringTask} />
     </div>
     <div className="task-grid">
-      {tasks.length === 0 ? <p className="empty-text">繰り返しタスクはまだありません。</p> : tasks.map((task) => <RecurringManageCard key={task.id} task={task} saveRecurringTask={saveRecurringTask} setRecurringActive={setRecurringActive} requestRecurringDelete={requestRecurringDelete} />)}
+      {sortedTasks.length === 0 ? <p className="empty-text">繰り返しタスクはまだありません。</p> : sortedTasks.map((task) => <RecurringManageCard key={task.id} task={task} saveRecurringTask={saveRecurringTask} setRecurringActive={setRecurringActive} requestRecurringDelete={requestRecurringDelete} />)}
     </div>
   </div>;
 }
@@ -1236,9 +1260,10 @@ function RecurringTaskForm({ initial, submitLabel, onSubmit, onCancel }: { initi
 }
 
 function FrequentTaskManager({ tasks, addTaskFromFrequentTask, saveFrequentTask, requestFrequentDelete }: { tasks: FrequentTask[]; addTaskFromFrequentTask: (task: FrequentTask) => void; saveFrequentTask: (task: FrequentTask, draft: FrequentTaskDraft) => boolean; requestFrequentDelete: (task: FrequentTask) => void }) {
+  const sortedTasks = [...tasks].sort(byFrequentTaskManageOrder);
   return <div className="recurring-manager">
     <div className="task-grid">
-      {tasks.length === 0 ? <p className="empty-text">よく使うタスクはまだありません。通常タスクの「よく使う」から登録できます。</p> : tasks.map((task) => <FrequentTaskCard key={task.id} task={task} addTaskFromFrequentTask={addTaskFromFrequentTask} saveFrequentTask={saveFrequentTask} requestFrequentDelete={requestFrequentDelete} />)}
+      {sortedTasks.length === 0 ? <p className="empty-text">よく使うタスクはまだありません。通常タスクの「よく使う」から登録できます。</p> : sortedTasks.map((task) => <FrequentTaskCard key={task.id} task={task} addTaskFromFrequentTask={addTaskFromFrequentTask} saveFrequentTask={saveFrequentTask} requestFrequentDelete={requestFrequentDelete} />)}
     </div>
   </div>;
 }
