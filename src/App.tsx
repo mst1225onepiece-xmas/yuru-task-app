@@ -1475,7 +1475,7 @@ function TaskCard({ task, actions, saveTask }: { task: Task; actions: React.Reac
   const [moreOpen, setMoreOpen] = useState(false);
   const actionConfig = isTaskCardActions(actions) ? actions : null;
   return <article className="task-card">
-    {editing ? <TaskForm initial={draftFromTask(task)} submitLabel="保存" onSubmit={(draft) => { if (!draft.title.trim()) return false; saveTask(task, draft); setEditing(false); return true; }} onCancel={() => setEditing(false)} allowDone completedAt={task.completedAt} /> : <>
+    {editing ? <TaskForm initial={draftFromTask(task)} submitLabel="保存" onSubmit={(draft) => { if (!draft.title.trim()) return false; saveTask(task, draft); setEditing(false); return true; }} onCancel={() => setEditing(false)} allowDone completedAt={task.completedAt} collapseDetails /> : <>
       <div className="chips"><span>{task.type}</span><span>{task.category}</span><span>{task.status}</span></div>
       <h3>{task.title}</h3>
       <div className="task-meta">{task.dueDate && <span>期限：{task.dueDate}（{dueLabel(task.dueDate)}）</span>}<span>場所：{task.place}</span>{task.timeSlot && <span>やる時間帯：{task.timeSlot}</span>}</div>
@@ -1490,9 +1490,10 @@ function TaskCard({ task, actions, saveTask }: { task: Task; actions: React.Reac
   </article>;
 }
 
-function TaskForm({ initial, submitLabel, onSubmit, onCancel, allowDone = false, completedAt }: { initial: TaskDraft; submitLabel: string; onSubmit: (draft: TaskDraft) => boolean; onCancel?: () => void; allowDone?: boolean; completedAt?: string | null }) {
+function TaskForm({ initial, submitLabel, onSubmit, onCancel, allowDone = false, completedAt, collapseDetails = false }: { initial: TaskDraft; submitLabel: string; onSubmit: (draft: TaskDraft) => boolean; onCancel?: () => void; allowDone?: boolean; completedAt?: string | null; collapseDetails?: boolean }) {
   const [draft, setDraft] = useState<TaskDraft>(initial);
   const [error, setError] = useState("");
+  const [detailsOpen, setDetailsOpen] = useState(!collapseDetails);
   function setField<K extends keyof TaskDraft>(key: K, value: TaskDraft[K]) { setDraft((current) => ({ ...current, [key]: value })); }
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -1501,8 +1502,11 @@ function TaskForm({ initial, submitLabel, onSubmit, onCancel, allowDone = false,
   }
   return <form className="task-form" onSubmit={submit}>
     <label>タイトル<input value={draft.title} onChange={(event) => setField("title", event.target.value)} placeholder="タイトルだけでも追加できます" /></label>
-    <div className="form-grid"><Select label="種類" value={draft.type} options={TASK_TYPES} onChange={(value) => setField("type", value as TaskType)} /><Select label="状態" value={draft.status} options={allowDone ? TASK_STATUSES : TASK_STATUSES.filter((status) => status !== "完了")} onChange={(value) => setField("status", value as TaskStatus)} /><CategorySelect value={draft.category} onChange={(value) => setField("category", value)} /><Select label="作業場所" value={draft.place} options={TASK_PLACES} onChange={(value) => setField("place", value as TaskPlace)} /><Select label="やる時間帯" value={draft.timeSlot} options={TIME_SLOTS} onChange={(value) => setField("timeSlot", value as TimeSlot)} /></div>
-    <label>期限<input type="date" value={draft.dueDate} onChange={(event) => setField("dueDate", event.target.value)} /></label>
+    {collapseDetails && <button className="form-details-toggle" type="button" onClick={() => setDetailsOpen((current) => !current)} aria-expanded={detailsOpen}>{detailsOpen ? "▼ 項目を閉じる" : "▶ 項目を開く"}</button>}
+    {detailsOpen && <>
+      <div className="form-grid"><Select label="種類" value={draft.type} options={TASK_TYPES} onChange={(value) => setField("type", value as TaskType)} /><Select label="状態" value={draft.status} options={allowDone ? TASK_STATUSES : TASK_STATUSES.filter((status) => status !== "完了")} onChange={(value) => setField("status", value as TaskStatus)} /><CategorySelect value={draft.category} onChange={(value) => setField("category", value)} /><Select label="作業場所" value={draft.place} options={TASK_PLACES} onChange={(value) => setField("place", value as TaskPlace)} /><Select label="やる時間帯" value={draft.timeSlot} options={TIME_SLOTS} onChange={(value) => setField("timeSlot", value as TimeSlot)} /></div>
+      <label>期限<input type="date" value={draft.dueDate} onChange={(event) => setField("dueDate", event.target.value)} /></label>
+    </>}
     <label>メモ<textarea value={draft.memo} onChange={(event) => setField("memo", event.target.value)} rows={3} /></label>
     {completedAt && <p className="small-note">完了日は自動設定です：{completedAt.slice(0, 10)}</p>}
     {error && <p className="form-error">{error}</p>}
