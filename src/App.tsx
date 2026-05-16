@@ -875,6 +875,12 @@ function App() {
     return pairs.every(([key, value]) => value === "すべて" || task[key as keyof Task] === value);
   }
 
+  function switchTab(tab: Tab) {
+    if (tab === activeTab) return;
+    setActiveTab(tab);
+    window.scrollTo({ top: 0, left: 0 });
+  }
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -885,7 +891,7 @@ function App() {
       </header>
       <nav className="bottom-nav" aria-label="画面切り替え">
         {(["今日", "ストック", "完了", "設定"] as Tab[]).map((tab) => (
-          <button key={tab} className={activeTab === tab ? "active" : ""} onClick={() => setActiveTab(tab)}>{tab}</button>
+          <button key={tab} className={activeTab === tab ? "active" : ""} onClick={() => switchTab(tab)}>{tab}</button>
         ))}
       </nav>
 
