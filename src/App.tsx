@@ -8,6 +8,7 @@ type TaskStatus = "今日やる" | "近いうち" | "いつかやる" | "連絡�
 type ActiveTaskCategory = "生活" | "仕事" | "お金" | "人・連絡" | "趣味" | "開発" | "SNS" | "その他";
 type TaskCategory = ActiveTaskCategory | string;
 type TaskPlace = "PC" | "スマホ" | "家" | "外" | "Codexに頼む" | "未設定";
+type TimeSlot = "" | "午前" | "午後" | "夕方" | "夜" | "深夜";
 type RecurringKind = "楽しみ" | "習慣" | "確認" | "振り返り";
 type RepeatType = "weekly" | "monthly";
 type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
@@ -20,6 +21,7 @@ type Task = {
   category: TaskCategory;
   memo: string;
   place: TaskPlace;
+  timeSlot: TimeSlot;
   dueDate: string | null;
   createdAt: string;
   updatedAt: string;
@@ -51,6 +53,7 @@ type TaskDraft = {
   status: TaskStatus;
   category: TaskCategory;
   place: TaskPlace;
+  timeSlot: TimeSlot;
   dueDate: string;
   memo: string;
 };
@@ -138,6 +141,8 @@ const TASK_TYPES: TaskType[] = ["やるべきこと", "やりたいこと", "思
 const TASK_STATUSES: TaskStatus[] = ["今日やる", "近いうち", "いつかやる", "連絡待ち", "保留", "完了"];
 const ACTIVE_TASK_CATEGORIES: ActiveTaskCategory[] = ["生活", "仕事", "お金", "人・連絡", "趣味", "開発", "SNS", "その他"];
 const TASK_PLACES: TaskPlace[] = ["PC", "スマホ", "家", "外", "Codexに頼む", "未設定"];
+const TIME_SLOTS: TimeSlot[] = ["", "午前", "午後", "夕方", "夜", "深夜"];
+const TIME_SLOT_SORT_ORDER: TimeSlot[] = ["午前", "午後", "夕方", "夜", "深夜", ""];
 const RECURRING_KINDS: RecurringKind[] = ["楽しみ", "習慣", "確認", "振り返り"];
 const REPEAT_TYPES: RepeatType[] = ["weekly", "monthly"];
 const WEEKDAYS = ["日曜", "月曜", "火曜", "水曜", "木曜", "金曜", "土曜"] as const;
@@ -185,6 +190,7 @@ const newDraft = (status: TaskStatus): TaskDraft => ({
   status,
   category: "生活",
   place: "未設定",
+  timeSlot: "",
   dueDate: "",
   memo: "",
 });
@@ -210,6 +216,7 @@ const nowIso = () => {
 const byCreatedDesc = (a: Task, b: Task) => b.createdAt.localeCompare(a.createdAt);
 const byCompletedDesc = (a: Task, b: Task) => (b.completedAt ?? "").localeCompare(a.completedAt ?? "");
 const byUpdatedThenCreatedDesc = (a: Task, b: Task) => b.updatedAt.localeCompare(a.updatedAt) || byCreatedDesc(a, b);
+const byTimeSlotThenCreatedDesc = (a: Task, b: Task) => indexOrAfter(TIME_SLOT_SORT_ORDER, a.timeSlot) - indexOrAfter(TIME_SLOT_SORT_ORDER, b.timeSlot) || byCreatedDesc(a, b);
 const byDueThenUpdatedDesc = (a: Task, b: Task) => {
   const aHasDue = Boolean(a.dueDate);
   const bHasDue = Boolean(b.dueDate);
@@ -267,11 +274,16 @@ function isTask(value: unknown): value is Task {
     typeof task.category === "string" &&
     typeof task.memo === "string" &&
     isOneOf(task.place, TASK_PLACES) &&
+    (isOneOf(task.timeSlot, TIME_SLOTS) || task.timeSlot === undefined) &&
     (typeof task.dueDate === "string" || task.dueDate === null) &&
     typeof task.createdAt === "string" &&
     typeof task.updatedAt === "string" &&
     (typeof task.completedAt === "string" || task.completedAt === null)
   );
+}
+
+function normalizeTask(task: Task): Task {
+  return { ...task, timeSlot: task.timeSlot ?? "" };
 }
 
 function isFrequentTask(value: unknown): value is FrequentTask {
@@ -335,6 +347,7 @@ function normalizeData(data: AppData): AppData {
     ...emptyData(),
     ...data,
     version: 1,
+    tasks: data.tasks.map(normalizeTask),
     frequentTasks: data.frequentTasks ?? [],
     recurringTasks: data.recurringTasks ?? [],
     recurringCompletions: data.recurringCompletions ?? [],
@@ -375,6 +388,7 @@ function makeTask(draft: TaskDraft): Task {
     category: draft.category,
     memo: draft.memo.trim(),
     place: draft.place,
+    timeSlot: draft.timeSlot,
     dueDate: draft.dueDate || null,
     createdAt: time,
     updatedAt: time,
@@ -390,6 +404,7 @@ function makeTaskFromFrequentTask(template: FrequentTask): Task {
     status: "今日やる",
     category: template.category,
     place: template.place,
+    timeSlot: "",
     dueDate: "",
   });
 }
@@ -419,6 +434,7 @@ function draftFromTask(task: Task): TaskDraft {
     status: task.status,
     category: task.category,
     place: task.place,
+    timeSlot: task.timeSlot ?? "",
     dueDate: task.dueDate ?? "",
     memo: task.memo,
   };
@@ -617,7 +633,7 @@ function App() {
   }, [notice]);
 
   const tasks = data.tasks;
-  const todayTasks = tasks.filter((task) => task.status === "今日やる").sort(byCreatedDesc);
+  const todayTasks = tasks.filter((task) => task.status === "今日やる").sort(byTimeSlotThenCreatedDesc);
   const nearDueTasks = tasks.filter((task) => isNearDue(task) && task.status !== "連絡待ち").sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? ""));
   const completedTodayTasks = tasks.filter((task) => task.status === "完了" && toDateKey(task.completedAt) === todayKey()).sort(byCompletedDesc);
   const waitingContactTasks = tasks.filter((task) => task.status === "連絡待ち" && !task.completedAt).sort(byCreatedDesc);
@@ -655,6 +671,7 @@ function App() {
       status: draft.status,
       category: draft.category,
       place: draft.place,
+      timeSlot: draft.timeSlot,
       dueDate: draft.dueDate || null,
       memo: draft.memo.trim(),
       completedAt,
@@ -1358,7 +1375,7 @@ function TaskCard({ task, actions, saveTask }: { task: Task; actions: React.Reac
     {editing ? <TaskForm initial={draftFromTask(task)} submitLabel="保存" onSubmit={(draft) => { if (!draft.title.trim()) return false; saveTask(task, draft); setEditing(false); return true; }} onCancel={() => setEditing(false)} allowDone completedAt={task.completedAt} /> : <>
       <div className="chips"><span>{task.type}</span><span>{task.category}</span><span>{task.status}</span></div>
       <h3>{task.title}</h3>
-      <div className="task-meta">{task.dueDate && <span>期限：{task.dueDate}（{dueLabel(task.dueDate)}）</span>}<span>場所：{task.place}</span></div>
+      <div className="task-meta">{task.dueDate && <span>期限：{task.dueDate}（{dueLabel(task.dueDate)}）</span>}<span>場所：{task.place}</span>{task.timeSlot && <span>やる時間帯：{task.timeSlot}</span>}</div>
       {task.memo && <p className="task-memo">{task.memo}</p>}
       {task.completedAt && <p className="small-note">完了：{task.completedAt.slice(0, 10)}</p>}
       {actionConfig ? <div className="task-card-actions">
@@ -1377,11 +1394,11 @@ function TaskForm({ initial, submitLabel, onSubmit, onCancel, allowDone = false,
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!draft.title.trim()) { setError("タイトルを入力してください。"); return; }
-    if (onSubmit(draft)) setDraft({ ...initial, title: "", memo: "", dueDate: "" });
+    if (onSubmit(draft)) setDraft({ ...initial, title: "", memo: "", dueDate: "", timeSlot: "" });
   }
   return <form className="task-form" onSubmit={submit}>
     <label>タイトル<input value={draft.title} onChange={(event) => setField("title", event.target.value)} placeholder="タイトルだけでも追加できます" /></label>
-    <div className="form-grid"><Select label="種類" value={draft.type} options={TASK_TYPES} onChange={(value) => setField("type", value as TaskType)} /><Select label="状態" value={draft.status} options={allowDone ? TASK_STATUSES : TASK_STATUSES.filter((status) => status !== "完了")} onChange={(value) => setField("status", value as TaskStatus)} /><CategorySelect value={draft.category} onChange={(value) => setField("category", value)} /><Select label="作業場所" value={draft.place} options={TASK_PLACES} onChange={(value) => setField("place", value as TaskPlace)} /></div>
+    <div className="form-grid"><Select label="種類" value={draft.type} options={TASK_TYPES} onChange={(value) => setField("type", value as TaskType)} /><Select label="状態" value={draft.status} options={allowDone ? TASK_STATUSES : TASK_STATUSES.filter((status) => status !== "完了")} onChange={(value) => setField("status", value as TaskStatus)} /><CategorySelect value={draft.category} onChange={(value) => setField("category", value)} /><Select label="作業場所" value={draft.place} options={TASK_PLACES} onChange={(value) => setField("place", value as TaskPlace)} /><Select label="やる時間帯" value={draft.timeSlot} options={TIME_SLOTS} onChange={(value) => setField("timeSlot", value as TimeSlot)} /></div>
     <label>期限<input type="date" value={draft.dueDate} onChange={(event) => setField("dueDate", event.target.value)} /></label>
     <label>メモ<textarea value={draft.memo} onChange={(event) => setField("memo", event.target.value)} rows={3} /></label>
     {completedAt && <p className="small-note">完了日は自動設定です：{completedAt.slice(0, 10)}</p>}
@@ -1391,7 +1408,7 @@ function TaskForm({ initial, submitLabel, onSubmit, onCancel, allowDone = false,
 }
 
 function Select({ label, value, options, onChange }: { label: string; value: string; options: readonly string[]; onChange: (value: string) => void }) {
-  return <label>{label}<select value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>;
+  return <label>{label}<select value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => <option key={option} value={option}>{option === "" ? "未設定" : option}</option>)}</select></label>;
 }
 
 function CategorySelect({ value, onChange }: { value: TaskCategory; onChange: (value: TaskCategory) => void }) {
