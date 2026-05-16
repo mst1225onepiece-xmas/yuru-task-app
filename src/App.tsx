@@ -564,9 +564,8 @@ function isNearDue(task: Task) {
 
 function App() {
   const loaded = useMemo(loadData, []);
-  const initialTab = useMemo(loadActiveTab, []);
   const [data, setData] = useState<AppData>(loaded.data);
-  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
+  const [activeTab, setActiveTab] = useState<Tab>("今日");
   const [loadError, setLoadError] = useState(loaded.error);
   const [notice, setNotice] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Task | null>(null);
@@ -988,7 +987,7 @@ function TodayView(props: {
       <TaskList empty="今日やるタスクはありません。必要なら新規タスクから追加できます。" tasks={filteredTodayTasks} actions={(task) => compactActions(<Action onClick={() => props.moveTask(task, "完了")}>完了</Action>, <><MoveButtons task={task} moveTask={props.moveTask} hide={["今日やる"]} /><Action subtle onClick={() => props.registerFrequentTask(task)}>よく使う</Action><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>)} saveTask={props.saveTask} />
     </CollapsibleSection>
     <CollapsibleSection title="期限が近い" count={filteredNearDueTasks.length} description="責める場所ではなく、そろそろ見ておくものを拾う場所です。" className="due-section" isOpen={Boolean(openSections.nearDue)} onToggle={() => toggleSection("nearDue")}>
-      <TaskList empty="期限が近いタスクはありません。" tasks={filteredNearDueTasks} actions={(task) => <><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><Action onClick={() => props.moveTask(task, "今日やる")}>今日やるへ</Action><Action onClick={() => props.moveTask(task, "保留")}>保留へ</Action><Action subtle onClick={() => props.registerFrequentTask(task)}>よく使う</Action></>} saveTask={props.saveTask} />
+      <TaskList empty="期限が近いタスクはありません。" tasks={filteredNearDueTasks} actions={(task) => compactActions(<Action onClick={() => props.moveTask(task, "完了")}>完了</Action>, <><MoveButtons task={task} moveTask={props.moveTask} /><Action subtle onClick={() => props.registerFrequentTask(task)}>よく使う</Action></>)} saveTask={props.saveTask} />
     </CollapsibleSection>
     <CollapsibleSection title="繰り返し" count={filteredRecurringTodayTasks.length} description="毎週・毎月の予定や楽しみを、必要な期間だけここに出します。" isOpen={Boolean(openSections.recurring)} onToggle={() => toggleSection("recurring")}>
       <RecurringTodayList items={filteredRecurringTodayTasks} completeRecurringTask={props.completeRecurringTask} />
@@ -998,7 +997,7 @@ function TodayView(props: {
       <RecurringCompletionList completions={filteredRecurringCompletedToday} />
     </CollapsibleSection>
     <CollapsibleSection title="連絡待ち" count={filteredWaitingContactTasks.length} description="相手からの返信や回答を待っているものを、今日やることとは分けて置きます。" className="waiting-section" isOpen={Boolean(openSections.waiting)} onToggle={() => toggleSection("waiting")}>
-      <TaskList empty="連絡待ちはありません。" tasks={filteredWaitingContactTasks} actions={(task) => <><Action onClick={() => props.moveTask(task, "完了")}>完了</Action><Action onClick={() => props.moveTask(task, "今日やる")}>今日やるへ</Action><Action onClick={() => props.moveTask(task, "近いうち")}>近いうちへ</Action><Action onClick={() => props.moveTask(task, "保留")}>保留へ</Action><Action subtle onClick={() => props.registerFrequentTask(task)}>よく使う</Action><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>} saveTask={props.saveTask} />
+      <TaskList empty="連絡待ちはありません。" tasks={filteredWaitingContactTasks} actions={(task) => compactActions(<Action onClick={() => props.moveTask(task, "完了")}>完了</Action>, <><MoveButtons task={task} moveTask={props.moveTask} /><Action subtle onClick={() => props.registerFrequentTask(task)}>よく使う</Action><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>)} saveTask={props.saveTask} />
     </CollapsibleSection>
     <Section title="整理メモをコピー" description="今日画面の内容から、あとで見返しやすいMarkdown風テキストを作ります。">
       <button className="primary-button" onClick={props.copyKeepText}>整理メモをコピー</button>
@@ -1040,21 +1039,24 @@ function StockView(props: SharedProps & SearchProps & { tasks: Task[]; enjoyment
 function EnjoymentInventoryCard({ inventory, enjoyInventoryItem }: { inventory: EnjoymentInventory; enjoyInventoryItem: (task: RecurringTask, targetDate: string) => void }) {
   const [isOpen, setIsOpen] = useState(false);
   const summary = inventory.items.length > 0 ? inventory.items.map((item) => `${item.title}${item.dates.length}`).join(" / ") : "今のところ、楽しみ在庫はありません。";
+  const detailRows = inventory.items
+    .flatMap((item) => item.dates.map((date) => ({ task: item.task, title: item.title, date })))
+    .sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title, "ja"));
   return <section className="section enjoyment-inventory">
     <button className="collapse-trigger enjoyment-trigger" type="button" onClick={() => setIsOpen((current) => !current)} aria-expanded={isOpen}>
       <span className="collapse-title"><span aria-hidden="true">{isOpen ? "▼" : "▶"}</span>楽しみ在庫<span className="collapse-count">合計{inventory.total}件</span></span>
     </button>
-    <p className="enjoyment-summary">{summary}</p>
     {isOpen && <div className="enjoyment-details">
-      {inventory.items.length === 0 ? <p className="empty-text">過去30日分で、未完了の楽しみ系繰り返しタスクはありません。</p> : inventory.items.map((item) => <div className="enjoyment-detail" key={item.task.id}>
-        <h3>{item.title}</h3>
+      <p className="enjoyment-summary">{summary}</p>
+      {detailRows.length === 0 ? <p className="empty-text">過去30日分で、未完了の楽しみ系繰り返しタスクはありません。</p> : <div className="enjoyment-detail">
+        <h3>対象日一覧</h3>
         <div className="enjoyment-date-list">
-          {item.dates.map((date) => <div className="enjoyment-date-row" key={date}>
-            <span>{date} 分</span>
-            <button className="enjoyment-done-button" type="button" onClick={() => enjoyInventoryItem(item.task, date)}>楽しんだ</button>
+          {detailRows.map((row) => <div className="enjoyment-date-row" key={`${row.task.id}-${row.date}`}>
+            <span>{row.date} 分：{row.title}</span>
+            <button className="enjoyment-done-button" type="button" onClick={() => enjoyInventoryItem(row.task, row.date)}>楽しんだ</button>
           </div>)}
         </div>
-      </div>)}
+      </div>}
     </div>}
   </section>;
 }

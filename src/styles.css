@@ -113,7 +113,6 @@ h2, h3, p { margin-top: 0; overflow-wrap: anywhere; }
   .primary-actions button { flex-basis: calc(50% - 0.25rem); }
   .secondary-actions button { flex-basis: calc(50% - 0.25rem); }
   .stock-search-row { grid-template-columns: 1fr; }
-  .stock-filter-grid { grid-template-columns: 1fr; }
   .stock-filter-toggle { justify-content: center; flex-wrap: wrap; }
   .enjoyment-date-row { grid-template-columns: 1fr; align-items: stretch; }
   .enjoyment-done-button { width: 100%; }
