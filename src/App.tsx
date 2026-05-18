@@ -592,11 +592,9 @@ function enjoymentInventory(data: AppData, today = todayKey()): EnjoymentInvento
   const items = data.recurringTasks
     .filter((task) => task.kind === "楽しみ" && task.isActive)
     .map((task) => {
-      const createdDateKey = toDateKey(task.createdAt);
       const dates = Array.from({ length: 30 }, (_, index) => addDays(startDate, index))
         .filter((date) => recurringTaskMatchesDate(task, date))
         .map(dateKeyFromDate)
-        .filter((targetDate) => targetDate >= createdDateKey)
         .filter((targetDate) => !completedKeys.has(`${task.id}:${targetDate}`));
       return { task, title: task.title, dates };
     })
