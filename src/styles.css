@@ -136,7 +136,7 @@ h2, h3, p { margin-top: 0; overflow-wrap: anywhere; }
   .stock-filter-toggle { justify-content: center; flex-wrap: wrap; }
   .enjoyment-date-row { grid-template-columns: 1fr; align-items: stretch; }
   .enjoyment-done-button { width: 100%; }
-  .form-grid, .filter-bar, .fixed-grid, .recurring-detail-grid { grid-template-columns: 1fr; }
+  .form-grid, .filter-bar, .fixed-grid { grid-template-columns: 1fr; }
   .section { padding: 0.9rem; }
 }
 

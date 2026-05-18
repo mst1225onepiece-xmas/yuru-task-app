@@ -1,9 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
   <title id="title">ゆるたすく maskable</title>
-  <desc id="desc">マスク可能領域を広めにした、ゆるたすくのアイコン</desc>
-  <rect width="512" height="512" fill="#2f5d50"/>
-  <circle cx="256" cy="238" r="172" fill="#eef7f1"/>
-  <path d="M154 246l58 58 146-158" fill="none" stroke="#2f5d50" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="358" cy="352" r="68" fill="#f2e3cc"/>
-  <text x="358" y="386" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="90" font-weight="800" fill="#2f5d50">ゆ</text>
+  <desc id="desc">淡い空と白い旗を広めに描いた、ゆるたすくのマスク対応アイコン</desc>
+  <rect width="512" height="512" fill="#a8daf6"/>
+  <path d="M0 224c35-22 76-21 116 3 24 15 57 4 81 18 22 13 14 34-6 44-39 19-88 2-128 3-28 1-47 11-63 24z" fill="#e8f6fd" opacity=".86"/>
+  <path d="M388 268c27-21 57-22 90-5 13 7 24 3 34 3v78c-28 4-57 5-82-4-22-8-39-4-57-1-29 4-45-14-36-37 7-17 31-19 51-34z" fill="#e8f6fd" opacity=".86"/>
+  <path d="M276 374c47-19 80-6 122-21 25-9 74-18 96 1 24 22-28 44-59 41-67-5-99 4-158 0-34-3-36-9-1-21z" fill="#d7eef9" opacity=".78"/>
+  <path d="M0 406c40-31 75-45 108-34 29 10 33 36 52 47 25 15 45-9 76-1 35 10 54 38 78 55H0z" fill="#85afc9" opacity=".88"/>
+  <path d="M361 459c36-47 75-70 117-46 13 8 23 19 34 31v68H336c5-20 13-37 25-53z" fill="#7fa9c4" opacity=".9"/>
+  <path d="M0 456c93-29 178-45 262-44 91 1 173 22 250 66v34H0z" fill="#94bed4"/>
+  <circle cx="366" cy="96" r="36" fill="#fff0a8"/>
+  <path d="M366 60a36 36 0 1 0 30 56 45 45 0 0 1-52-51 36 36 0 0 1 22-5z" fill="#fff0a8"/>
+  <circle cx="186" cy="98" r="7" fill="#ffffff"/>
+  <circle cx="294" cy="140" r="8" fill="#72a9ca"/>
+  <path d="M206 181v243" fill="none" stroke="#ffffff" stroke-width="19" stroke-linecap="round"/>
+  <circle cx="206" cy="181" r="18" fill="#ffffff"/>
+  <path d="M224 203c55-23 91 15 141 8 19-3 29-11 35-5 8 8-16 43-2 61 10 14 34 18 26 31-17 26-72 43-123 25-29-11-51-5-77 5z" fill="#ffffff"/>
+  <ellipse cx="206" cy="424" rx="40" ry="8" fill="#6d9fbd" opacity=".48"/>
 </svg>

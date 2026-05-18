@@ -140,3 +140,8 @@ dist
 dist/
 .DS_Store
 pnpm-debug.log*
+
+# Project notes kept outside the app repository
+23_ゆるタスク_改善履歴.md
+23_ゆるたすく_改善履歴.md
+*_改善履歴.md
