@@ -72,6 +72,10 @@ h2, h3, p { margin-top: 0; overflow-wrap: anywhere; }
 .task-create-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.65rem; }
 .task-create-detail-grid label { min-width: 0; }
 .task-create-detail-grid select, .task-create-detail-grid input { min-width: 0; padding: 0.62rem 0.55rem; }
+.recurring-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.65rem; }
+.recurring-detail-grid label { min-width: 0; }
+.recurring-detail-grid select, .recurring-detail-grid input { min-width: 0; padding: 0.62rem 0.55rem; }
+.recurring-active-field { width: 100%; min-height: 100%; align-self: end; padding: 0.62rem 0.55rem; border: 1px solid #cbd6d0; border-radius: 8px; background: #ffffff; }
 .form-grid, .filter-bar, .fixed-grid { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
 .search-box { margin-bottom: 0.8rem; }
 .stock-filter-panel { display: grid; gap: 0.65rem; }
@@ -132,7 +136,7 @@ h2, h3, p { margin-top: 0; overflow-wrap: anywhere; }
   .stock-filter-toggle { justify-content: center; flex-wrap: wrap; }
   .enjoyment-date-row { grid-template-columns: 1fr; align-items: stretch; }
   .enjoyment-done-button { width: 100%; }
-  .form-grid, .filter-bar, .fixed-grid { grid-template-columns: 1fr; }
+  .form-grid, .filter-bar, .fixed-grid, .recurring-detail-grid { grid-template-columns: 1fr; }
   .section { padding: 0.9rem; }
 }
 

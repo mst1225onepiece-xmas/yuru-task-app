@@ -1,4 +1,4 @@
-﻿import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+﻿import { ChangeEvent, FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 const STORAGE_KEY = "yuki-task-manager-data";
 const ACTIVE_VIEW_KEY = "yuki-task-manager-active-view";
@@ -662,7 +662,7 @@ function isNearDue(task: Task) {
 function App() {
   const loaded = useMemo(loadData, []);
   const [data, setData] = useState<AppData>(loaded.data);
-  const [activeTab, setActiveTab] = useState<Tab>("今日");
+  const [activeTab, setActiveTab] = useState<Tab>(() => loadActiveTab());
   const [loadError, setLoadError] = useState(loaded.error);
   const [notice, setNotice] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Task | null>(null);
@@ -681,6 +681,13 @@ function App() {
     if (saveBlocked) return;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   }, [data, saveBlocked]);
+
+  useLayoutEffect(() => {
+    if ("scrollRestoration" in window.history) {
+      window.history.scrollRestoration = "manual";
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [activeTab]);
 
   useEffect(() => {
     localStorage.setItem(ACTIVE_VIEW_KEY, TAB_TO_STORED_VIEW[activeTab]);
@@ -1004,7 +1011,6 @@ function App() {
   function switchTab(tab: Tab) {
     if (tab === activeTab) return;
     setActiveTab(tab);
-    window.scrollTo({ top: 0, left: 0 });
   }
 
   return (
@@ -1012,7 +1018,7 @@ function App() {
       <header className="app-header">
         <div>
           <p className="eyebrow">思いついたことをその場で置けるタスク台帳</p>
-          <h1>ゆるタスク</h1>
+          <h1>ゆるたすく</h1>
         </div>
       </header>
       <nav className="bottom-nav" aria-label="画面切り替え">
@@ -1345,7 +1351,7 @@ function RecurringTaskForm({ initial, submitLabel, onSubmit, onCancel }: { initi
   }
   return <form className="task-form recurring-form" onSubmit={submit}>
     <label>タイトル<input value={draft.title} onChange={(event) => setField("title", event.target.value)} placeholder="毎週のアニメ、月次振り返りなど" /></label>
-    <div className="form-grid">
+    <div className="recurring-detail-grid">
       <Select label="カテゴリ" value={draft.category} options={ACTIVE_TASK_CATEGORIES} onChange={(value) => setField("category", value as ActiveTaskCategory)} />
       <Select label="種類" value={draft.kind} options={RECURRING_KINDS} onChange={(value) => setField("kind", value as RecurringKind)} />
       <label>繰り返し種別<select value={draft.repeatType} onChange={(event) => setField("repeatType", event.target.value as RepeatType)}>
@@ -1357,9 +1363,9 @@ function RecurringTaskForm({ initial, submitLabel, onSubmit, onCancel }: { initi
       </select></label> : <label>日付<select value={draft.monthDay} onChange={(event) => setField("monthDay", event.target.value)}>
         {Array.from({ length: 31 }, (_, index) => String(index + 1)).map((day) => <option key={day} value={day}>{day}日</option>)}
       </select></label>}
+      <label className="check-label recurring-active-field"><input type="checkbox" checked={draft.isActive} onChange={(event) => setField("isActive", event.target.checked)} />有効</label>
     </div>
     <label>メモ<textarea value={draft.memo} onChange={(event) => setField("memo", event.target.value)} rows={3} /></label>
-    <label className="check-label"><input type="checkbox" checked={draft.isActive} onChange={(event) => setField("isActive", event.target.checked)} />有効</label>
     {error && <p className="form-error">{error}</p>}
     <div className="button-row"><button className="primary-button" type="submit">{submitLabel}</button>{onCancel && <button type="button" onClick={onCancel}>キャンセル</button>}</div>
   </form>;
@@ -1416,6 +1422,13 @@ function SettingsView({ data, exportJson, parseImport, parseAppendImport, fileIn
   const [recurringOpen, setRecurringOpen] = useState(false);
   const [frequentOpen, setFrequentOpen] = useState(false);
   return <div className="view-stack">
+    <CollapsibleSection title="よく使うタスク管理" count={data.frequentTasks.length} description="必要なときに今日やるへ呼び出せる、通常タスク作成用のテンプレートです。" isOpen={frequentOpen} onToggle={() => setFrequentOpen((current) => !current)}>
+      <FrequentTaskManager tasks={data.frequentTasks} addTaskFromFrequentTask={addTaskFromFrequentTask} saveFrequentTask={saveFrequentTask} requestFrequentDelete={requestFrequentDelete} />
+    </CollapsibleSection>
+    <CollapsibleSection title="繰り返しタスク管理" count={data.recurringTasks.length} description="毎週・毎月の予定や楽しみを、必要な期間だけ今日画面に出すための固定メニューです。" isOpen={recurringOpen} onToggle={() => setRecurringOpen((current) => !current)}>
+      <RecurringTaskManager tasks={data.recurringTasks} addRecurringTask={addRecurringTask} saveRecurringTask={saveRecurringTask} setRecurringActive={setRecurringActive} requestRecurringDelete={requestRecurringDelete} />
+    </CollapsibleSection>
+    <Section title="固定リスト" description="現在の新規作成・編集で使うカテゴリです。既存タスクに過去のカテゴリが残っていても、表示は維持されます。"><div className="fixed-grid"><FixedList title="種類" items={TASK_TYPES} /><FixedList title="状態" items={TASK_STATUSES} /><FixedList title="カテゴリ" items={ACTIVE_TASK_CATEGORIES} /><FixedList title="作業場所" items={TASK_PLACES} /></div></Section>
     <Section title="データ管理" description="バックアップ、別端末への移動、不具合時の復元に使います。">
       <p className="small-note">実運用前や大きく整理する前は、JSONエクスポートでバックアップを残しておくと安心です。</p>
       <div className="data-actions">
@@ -1436,15 +1449,6 @@ function SettingsView({ data, exportJson, parseImport, parseAppendImport, fileIn
       <input ref={fileInputRef} type="file" accept="application/json,.json" hidden onChange={parseImport} />
       {importError && <p className="form-error">{importError}</p>}
     </Section>
-    <CollapsibleSection title="よく使うタスク管理" count={data.frequentTasks.length} description="必要なときに今日やるへ呼び出せる、通常タスク作成用のテンプレートです。" isOpen={frequentOpen} onToggle={() => setFrequentOpen((current) => !current)}>
-      <FrequentTaskManager tasks={data.frequentTasks} addTaskFromFrequentTask={addTaskFromFrequentTask} saveFrequentTask={saveFrequentTask} requestFrequentDelete={requestFrequentDelete} />
-    </CollapsibleSection>
-    <CollapsibleSection title="繰り返しタスク管理" count={data.recurringTasks.length} description="毎週・毎月の予定や楽しみを、必要な期間だけ今日画面に出すための固定メニューです。" isOpen={recurringOpen} onToggle={() => setRecurringOpen((current) => !current)}>
-      <RecurringTaskManager tasks={data.recurringTasks} addRecurringTask={addRecurringTask} saveRecurringTask={saveRecurringTask} setRecurringActive={setRecurringActive} requestRecurringDelete={requestRecurringDelete} />
-    </CollapsibleSection>
-    <Section title="整理メモコピーの説明"><p>今日画面の内容から、見返しやすいMarkdown風テキストを作ります。日中の確認や、夜の日記材料に使えます。</p></Section>
-    <Section title="固定リスト" description="現在の新規作成・編集で使うカテゴリです。既存タスクに過去のカテゴリが残っていても、表示は維持されます。"><div className="fixed-grid"><FixedList title="種類" items={TASK_TYPES} /><FixedList title="状態" items={TASK_STATUSES} /><FixedList title="カテゴリ" items={ACTIVE_TASK_CATEGORIES} /><FixedList title="作業場所" items={TASK_PLACES} /></div></Section>
-    <Section title="保存方式の説明"><p>初期版はブラウザのlocalStorageに自動保存します。タスク追加、編集、削除、状態変更、JSONインポートのあと保存ボタンなしで保存されます。</p></Section>
   </div>;
 }
 

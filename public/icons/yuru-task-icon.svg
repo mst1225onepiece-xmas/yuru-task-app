@@ -1,8 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
-  <title id="title">ゆるタスク</title>
-  <desc id="desc">丸い背景にチェックマークと「ゆ」の文字を置いた仮アイコン</desc>
-  <rect width="512" height="512" rx="112" fill="#f5f7f4"/>
-  <circle cx="256" cy="256" r="184" fill="#2f5d50"/>
-  <path d="M158 270l57 57 142-154" fill="none" stroke="#ffffff" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/>
-  <text x="256" y="396" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="108" font-weight="800" fill="#f2e3cc">ゆ</text>
+  <title id="title">ゆるたすく</title>
+  <desc id="desc">やわらかな背景にチェックマークと「ゆ」の文字を置いた、ゆるたすくのアイコン</desc>
+  <rect width="512" height="512" rx="112" fill="#eef7f1"/>
+  <circle cx="260" cy="244" r="176" fill="#2f5d50"/>
+  <path d="M154 255l57 57 150-162" fill="none" stroke="#ffffff" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="362" cy="352" r="66" fill="#f2e3cc"/>
+  <text x="362" y="386" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="90" font-weight="800" fill="#2f5d50">ゆ</text>
 </svg>
