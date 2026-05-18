@@ -87,6 +87,7 @@ type RecurringTask = {
   weekday: Weekday | null;
   monthDay: number | null;
   isActive: boolean;
+  inventoryStartDate?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -326,6 +327,7 @@ function isRecurringTask(value: unknown): value is RecurringTask {
     (isWeekday(task.weekday) || task.weekday === null) &&
     (isMonthDay(task.monthDay) || task.monthDay === null) &&
     typeof task.isActive === "boolean" &&
+    (task.inventoryStartDate === undefined || /^\d{4}-\d{2}-\d{2}$/.test(task.inventoryStartDate)) &&
     typeof task.createdAt === "string" &&
     typeof task.updatedAt === "string"
   );
@@ -595,6 +597,7 @@ function enjoymentInventory(data: AppData, today = todayKey()): EnjoymentInvento
       const dates = Array.from({ length: 30 }, (_, index) => addDays(startDate, index))
         .filter((date) => recurringTaskMatchesDate(task, date))
         .map(dateKeyFromDate)
+        .filter((targetDate) => !task.inventoryStartDate || targetDate >= task.inventoryStartDate)
         .filter((targetDate) => !completedKeys.has(`${task.id}:${targetDate}`));
       return { task, title: task.title, dates };
     })
@@ -822,6 +825,7 @@ function App() {
       weekday: draft.repeatType === "weekly" ? Number(draft.weekday) as Weekday : null,
       monthDay: draft.repeatType === "monthly" ? Number(draft.monthDay) : null,
       isActive: draft.isActive,
+      ...(draft.kind === "楽しみ" ? { inventoryStartDate: todayKey() } : {}),
       createdAt: time,
       updatedAt: time,
     };
@@ -849,6 +853,7 @@ function App() {
         weekday: draft.repeatType === "weekly" ? Number(draft.weekday) as Weekday : null,
         monthDay: draft.repeatType === "monthly" ? Number(draft.monthDay) : null,
         isActive: draft.isActive,
+        ...(draft.kind === "楽しみ" && !item.inventoryStartDate ? { inventoryStartDate: todayKey() } : {}),
         updatedAt: time,
       } : item),
     }));
