@@ -592,9 +592,11 @@ function enjoymentInventory(data: AppData, today = todayKey()): EnjoymentInvento
   const items = data.recurringTasks
     .filter((task) => task.kind === "楽しみ" && task.isActive)
     .map((task) => {
+      const createdDateKey = toDateKey(task.createdAt);
       const dates = Array.from({ length: 30 }, (_, index) => addDays(startDate, index))
         .filter((date) => recurringTaskMatchesDate(task, date))
         .map(dateKeyFromDate)
+        .filter((targetDate) => targetDate >= createdDateKey)
         .filter((targetDate) => !completedKeys.has(`${task.id}:${targetDate}`));
       return { task, title: task.title, dates };
     })
@@ -1031,7 +1033,7 @@ function App() {
       {notice && <div className="message success">{notice}</div>}
 
       <main>
-        {activeTab === "今日" && <TodayView todayTasks={todayTasks} nearDueTasks={nearDueTasks} recurringTodayTasks={recurringTodayTasks} completedTodayTasks={completedTodayTasks} recurringCompletedToday={recurringCompletedToday} waitingContactTasks={waitingContactTasks} addTask={addTask} saveTask={saveTask} moveTask={moveTask} undoComplete={undoComplete} completeRecurringTask={completeRecurringTask} registerFrequentTask={registerFrequentTask} requestDelete={setDeleteTarget} copyKeepText={copyKeepText} />}
+        {activeTab === "今日" && <TodayView todayTasks={todayTasks} nearDueTasks={nearDueTasks} recurringTodayTasks={recurringTodayTasks} completedTodayTasks={completedTodayTasks} recurringCompletedToday={recurringCompletedToday} waitingContactTasks={waitingContactTasks} frequentTasks={data.frequentTasks} addTask={addTask} saveTask={saveTask} moveTask={moveTask} undoComplete={undoComplete} completeRecurringTask={completeRecurringTask} registerFrequentTask={registerFrequentTask} requestDelete={setDeleteTarget} copyKeepText={copyKeepText} />}
         {activeTab === "ストック" && <StockView tasks={stockTasks} enjoymentInventory={stockEnjoymentInventory} enjoyInventoryItem={enjoyInventoryItem} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} saveTask={saveTask} moveTask={moveTask} registerFrequentTask={registerFrequentTask} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
         {activeTab === "完了" && <DoneView tasks={doneTasks} recurringCompletions={data.recurringCompletions} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} saveTask={saveTask} undoComplete={undoComplete} registerFrequentTask={registerFrequentTask} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
         {activeTab === "設定" && <SettingsView data={data} exportJson={exportJson} parseImport={parseImport} parseAppendImport={parseAppendImport} fileInputRef={fileInputRef} appendFileInputRef={appendFileInputRef} importError={importError} addTaskFromFrequentTask={addTaskFromFrequentTask} saveFrequentTask={saveFrequentTask} requestFrequentDelete={setFrequentDeleteTarget} addRecurringTask={addRecurringTask} saveRecurringTask={saveRecurringTask} setRecurringActive={setRecurringActive} requestRecurringDelete={setRecurringDeleteTarget} />}
@@ -1090,6 +1092,7 @@ function TodayView(props: {
   completedTodayTasks: Task[];
   recurringCompletedToday: RecurringCompletion[];
   waitingContactTasks: Task[];
+  frequentTasks: FrequentTask[];
   addTask: (draft: TaskDraft) => boolean;
   saveTask: (task: Task, draft: TaskDraft) => void;
   moveTask: (task: Task, status: TaskStatus) => void;
@@ -1120,7 +1123,7 @@ function TodayView(props: {
       <div className="today-actions">
         <button className="primary-button add-task-button" type="button" onClick={() => setIsAddFormOpen((current) => !current)} aria-expanded={isAddFormOpen}>{isAddFormOpen ? "▼ 新規タスク" : "＋ 新規タスク"}</button>
         {isAddFormOpen && <div className="today-add-panel">
-          <TaskForm initial={newDraft("いつかやる")} submitLabel="タスクを追加" onSubmit={addTaskAndClose} onCancel={() => setIsAddFormOpen(false)} allowDone />
+          <TaskForm initial={newDraft("いつかやる")} submitLabel="タスクを追加" onSubmit={addTaskAndClose} onCancel={() => setIsAddFormOpen(false)} allowDone frequentTasks={props.frequentTasks} />
         </div>}
       </div>
     </Section>
@@ -1494,17 +1497,42 @@ function TaskCard({ task, actions, saveTask }: { task: Task; actions: React.Reac
   </article>;
 }
 
-function TaskForm({ initial, submitLabel, onSubmit, onCancel, allowDone = false, completedAt, collapseDetails = false }: { initial: TaskDraft; submitLabel: string; onSubmit: (draft: TaskDraft) => boolean; onCancel?: () => void; allowDone?: boolean; completedAt?: string | null; collapseDetails?: boolean }) {
+function TaskForm({ initial, submitLabel, onSubmit, onCancel, allowDone = false, completedAt, collapseDetails = false, frequentTasks }: { initial: TaskDraft; submitLabel: string; onSubmit: (draft: TaskDraft) => boolean; onCancel?: () => void; allowDone?: boolean; completedAt?: string | null; collapseDetails?: boolean; frequentTasks?: FrequentTask[] }) {
   const [draft, setDraft] = useState<TaskDraft>(initial);
   const [error, setError] = useState("");
   const [detailsOpen, setDetailsOpen] = useState(!collapseDetails);
+  const [frequentCopyOpen, setFrequentCopyOpen] = useState(false);
   function setField<K extends keyof TaskDraft>(key: K, value: TaskDraft[K]) { setDraft((current) => ({ ...current, [key]: value })); }
+  function copyFromFrequentTask(task: FrequentTask) {
+    setDraft((current) => ({
+      ...current,
+      title: task.title,
+      memo: task.memo,
+      type: task.type,
+      status: "今日やる",
+      category: task.category,
+      place: task.place,
+      timeSlot: "",
+      dueDate: "",
+    }));
+    setError("");
+    setFrequentCopyOpen(false);
+  }
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!draft.title.trim()) { setError("タイトルを入力してください。"); return; }
     if (onSubmit(draft)) setDraft({ ...initial, title: "", memo: "", dueDate: "", timeSlot: "" });
   }
   return <form className="task-form" onSubmit={submit}>
+    {frequentTasks && <div className="frequent-copy-panel">
+      <button className="form-details-toggle" type="button" onClick={() => setFrequentCopyOpen((current) => !current)} aria-expanded={frequentCopyOpen}>{frequentCopyOpen ? "▼ よく使うを閉じる" : "▶ よく使うからコピー"}</button>
+      {frequentCopyOpen && (frequentTasks.length === 0 ? <p className="empty-text">よく使うタスクはまだありません。</p> : <div className="frequent-copy-list">
+        {[...frequentTasks].sort(byFrequentTaskManageOrder).map((task) => <button className="frequent-copy-item" key={task.id} type="button" onClick={() => copyFromFrequentTask(task)}>
+          <span className="frequent-copy-title">{task.title}</span>
+          <span className="frequent-copy-meta">{task.category} / {task.type} / {task.place}</span>
+        </button>)}
+      </div>)}
+    </div>}
     <label>タイトル<input value={draft.title} onChange={(event) => setField("title", event.target.value)} placeholder="タイトルだけでも追加できます" /></label>
     {collapseDetails && <button className="form-details-toggle" type="button" onClick={() => setDetailsOpen((current) => !current)} aria-expanded={detailsOpen}>{detailsOpen ? "▼ 項目を閉じる" : "▶ 項目を開く"}</button>}
     {detailsOpen && <div className="task-create-detail-grid"><Select label="種類" value={draft.type} options={TASK_TYPES} onChange={(value) => setField("type", value as TaskType)} /><Select label="状態" value={draft.status} options={allowDone ? TASK_STATUSES : TASK_STATUSES.filter((status) => status !== "完了")} onChange={(value) => setField("status", value as TaskStatus)} /><CategorySelect value={draft.category} onChange={(value) => setField("category", value)} /><Select label="作業場所" value={draft.place} options={TASK_PLACES} onChange={(value) => setField("place", value as TaskPlace)} /><Select label="やる時間帯" value={draft.timeSlot} options={TIME_SLOTS} onChange={(value) => setField("timeSlot", value as TimeSlot)} /><label>期限<input type="date" value={draft.dueDate} onChange={(event) => setField("dueDate", event.target.value)} /></label></div>}
