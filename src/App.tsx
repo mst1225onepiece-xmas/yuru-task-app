@@ -643,11 +643,15 @@ function defaultOpenDoneDate(groups: DoneGroup[]) {
   return groups.find((group) => group.date !== todayKey())?.date ?? groups[0].date;
 }
 
+function daysFromToday(dateKey: string) {
+  const today = dateFromKey(todayKey());
+  const date = dateFromKey(dateKey);
+  return Math.round((date.getTime() - today.getTime()) / 86400000);
+}
+
 function dueLabel(dueDate: string | null) {
   if (!dueDate) return "";
-  const today = new Date(`${todayKey()}T00:00:00`);
-  const due = new Date(`${dueDate}T00:00:00`);
-  const diff = Math.round((due.getTime() - today.getTime()) / 86400000);
+  const diff = daysFromToday(dueDate);
   if (diff < 0) return "過ぎているかも";
   if (diff === 0) return "今日まで";
   if (diff === 1) return "明日まで";
@@ -656,10 +660,7 @@ function dueLabel(dueDate: string | null) {
 
 function isNearDue(task: Task) {
   if (!task.dueDate || task.status === "完了" || task.status === "今日やる") return false;
-  const today = new Date(`${todayKey()}T00:00:00`);
-  const due = new Date(`${task.dueDate}T00:00:00`);
-  const diff = Math.round((due.getTime() - today.getTime()) / 86400000);
-  return diff <= 3;
+  return daysFromToday(task.dueDate) <= 3;
 }
 
 function App() {
