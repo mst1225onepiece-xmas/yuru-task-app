@@ -1036,9 +1036,9 @@ function App() {
       {notice && <div className="message success">{notice}</div>}
 
       <main>
-        {activeTab === "今日" && <TodayView todayTasks={todayTasks} nearDueTasks={nearDueTasks} recurringTodayTasks={recurringTodayTasks} completedTodayTasks={completedTodayTasks} recurringCompletedToday={recurringCompletedToday} waitingContactTasks={waitingContactTasks} frequentTasks={data.frequentTasks} addTask={addTask} saveTask={saveTask} moveTask={moveTask} undoComplete={undoComplete} completeRecurringTask={completeRecurringTask} registerFrequentTask={registerFrequentTask} requestDelete={setDeleteTarget} copyKeepText={copyKeepText} />}
-        {activeTab === "ストック" && <StockView tasks={stockTasks} enjoymentInventory={stockEnjoymentInventory} enjoyInventoryItem={enjoyInventoryItem} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} saveTask={saveTask} moveTask={moveTask} registerFrequentTask={registerFrequentTask} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
-        {activeTab === "完了" && <DoneView tasks={doneTasks} recurringCompletions={data.recurringCompletions} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} saveTask={saveTask} undoComplete={undoComplete} registerFrequentTask={registerFrequentTask} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
+        {activeTab === "今日" && <TodayView todayTasks={todayTasks} nearDueTasks={nearDueTasks} recurringTodayTasks={recurringTodayTasks} completedTodayTasks={completedTodayTasks} recurringCompletedToday={recurringCompletedToday} waitingContactTasks={waitingContactTasks} frequentTasks={data.frequentTasks} addTask={addTask} copyTask={addTask} saveTask={saveTask} moveTask={moveTask} undoComplete={undoComplete} completeRecurringTask={completeRecurringTask} registerFrequentTask={registerFrequentTask} requestDelete={setDeleteTarget} copyKeepText={copyKeepText} />}
+        {activeTab === "ストック" && <StockView tasks={stockTasks} enjoymentInventory={stockEnjoymentInventory} enjoyInventoryItem={enjoyInventoryItem} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} copyTask={addTask} saveTask={saveTask} moveTask={moveTask} registerFrequentTask={registerFrequentTask} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
+        {activeTab === "完了" && <DoneView tasks={doneTasks} recurringCompletions={data.recurringCompletions} filters={filters} setFilters={setFilters} searchQuery={searchQuery} setSearchQuery={setSearchQuery} copyTask={addTask} saveTask={saveTask} undoComplete={undoComplete} registerFrequentTask={registerFrequentTask} requestDelete={setDeleteTarget} matches={matches} matchesSearch={matchesSearch} />}
         {activeTab === "設定" && <SettingsView data={data} exportJson={exportJson} parseImport={parseImport} parseAppendImport={parseAppendImport} fileInputRef={fileInputRef} appendFileInputRef={appendFileInputRef} importError={importError} addTaskFromFrequentTask={addTaskFromFrequentTask} saveFrequentTask={saveFrequentTask} requestFrequentDelete={setFrequentDeleteTarget} addRecurringTask={addRecurringTask} saveRecurringTask={saveRecurringTask} setRecurringActive={setRecurringActive} requestRecurringDelete={setRecurringDeleteTarget} />}
       </main>
 
@@ -1062,6 +1062,7 @@ function App() {
 }
 
 type SharedProps = {
+  copyTask: (draft: TaskDraft) => boolean;
   saveTask: (task: Task, draft: TaskDraft) => void;
   moveTask: (task: Task, status: TaskStatus) => void;
   registerFrequentTask: (task: Task) => void;
@@ -1097,6 +1098,7 @@ function TodayView(props: {
   waitingContactTasks: Task[];
   frequentTasks: FrequentTask[];
   addTask: (draft: TaskDraft) => boolean;
+  copyTask: (draft: TaskDraft) => boolean;
   saveTask: (task: Task, draft: TaskDraft) => void;
   moveTask: (task: Task, status: TaskStatus) => void;
   requestDelete: (task: Task) => void;
@@ -1131,20 +1133,20 @@ function TodayView(props: {
       </div>
     </Section>
     <CollapsibleSection title="今日やる" count={filteredTodayTasks.length} description="今日動きたいものを置きます。あとから状態を変えても大丈夫です。" isOpen={Boolean(openSections.today)} onToggle={() => toggleSection("today")}>
-      <TaskList empty="今日やるタスクはありません。必要なら新規タスクから追加できます。" tasks={filteredTodayTasks} actions={(task) => compactActions(<Action onClick={() => props.moveTask(task, "完了")}>完了</Action>, <><MoveButtons task={task} moveTask={props.moveTask} hide={["今日やる"]} /><Action subtle onClick={() => props.registerFrequentTask(task)}>よく使う</Action><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>)} saveTask={props.saveTask} />
+      <TaskList empty="今日やるタスクはありません。必要なら新規タスクから追加できます。" tasks={filteredTodayTasks} actions={(task) => compactActions(<Action onClick={() => props.moveTask(task, "完了")}>完了</Action>, <><MoveButtons task={task} moveTask={props.moveTask} hide={["今日やる"]} /><Action subtle onClick={() => props.registerFrequentTask(task)}>よく使う</Action><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>)} saveTask={props.saveTask} copyTask={props.copyTask} />
     </CollapsibleSection>
     <CollapsibleSection title="期限が近い" count={filteredNearDueTasks.length} description="責める場所ではなく、そろそろ見ておくものを拾う場所です。" className="due-section" isOpen={Boolean(openSections.nearDue)} onToggle={() => toggleSection("nearDue")}>
-      <TaskList empty="期限が近いタスクはありません。" tasks={filteredNearDueTasks} actions={(task) => compactActions(<Action onClick={() => props.moveTask(task, "完了")}>完了</Action>, <><MoveButtons task={task} moveTask={props.moveTask} /><Action subtle onClick={() => props.registerFrequentTask(task)}>よく使う</Action></>)} saveTask={props.saveTask} />
+      <TaskList empty="期限が近いタスクはありません。" tasks={filteredNearDueTasks} actions={(task) => compactActions(<Action onClick={() => props.moveTask(task, "完了")}>完了</Action>, <><MoveButtons task={task} moveTask={props.moveTask} /><Action subtle onClick={() => props.registerFrequentTask(task)}>よく使う</Action></>)} saveTask={props.saveTask} copyTask={props.copyTask} />
     </CollapsibleSection>
     <CollapsibleSection title="繰り返し" count={filteredRecurringTodayTasks.length} description="毎週・毎月の予定や楽しみを、必要な期間だけここに出します。" isOpen={Boolean(openSections.recurring)} onToggle={() => toggleSection("recurring")}>
       <RecurringTodayList items={filteredRecurringTodayTasks} completeRecurringTask={props.completeRecurringTask} />
     </CollapsibleSection>
     <CollapsibleSection title="今日完了したこと" count={filteredCompletedTodayTasks.length + filteredRecurringCompletedToday.length} description="今日やったことを見えるようにして、日記や振り返りに使います。" isOpen={Boolean(openSections.completedToday)} onToggle={() => toggleSection("completedToday")}>
-      {filteredCompletedTodayTasks.length === 0 && filteredRecurringCompletedToday.length === 0 ? <p className="empty-text">今日完了したタスクはまだありません。終わったこともあとから追加できます。</p> : filteredCompletedTodayTasks.length > 0 && <TaskList empty="" tasks={filteredCompletedTodayTasks} actions={(task) => <><Action onClick={() => props.undoComplete(task)}>完了を取り消す</Action><Action subtle onClick={() => props.registerFrequentTask(task)}>よく使う</Action></>} saveTask={props.saveTask} />}
+      {filteredCompletedTodayTasks.length === 0 && filteredRecurringCompletedToday.length === 0 ? <p className="empty-text">今日完了したタスクはまだありません。終わったこともあとから追加できます。</p> : filteredCompletedTodayTasks.length > 0 && <TaskList empty="" tasks={filteredCompletedTodayTasks} actions={(task) => <><Action onClick={() => props.undoComplete(task)}>完了を取り消す</Action><Action subtle onClick={() => props.registerFrequentTask(task)}>よく使う</Action></>} saveTask={props.saveTask} copyTask={props.copyTask} />}
       <RecurringCompletionList completions={filteredRecurringCompletedToday} />
     </CollapsibleSection>
     <CollapsibleSection title="連絡待ち" count={filteredWaitingContactTasks.length} description="相手からの返信や回答を待っているものを、今日やることとは分けて置きます。" className="waiting-section" isOpen={Boolean(openSections.waiting)} onToggle={() => toggleSection("waiting")}>
-      <TaskList empty="連絡待ちはありません。" tasks={filteredWaitingContactTasks} actions={(task) => compactActions(<Action onClick={() => props.moveTask(task, "完了")}>完了</Action>, <><MoveButtons task={task} moveTask={props.moveTask} /><Action subtle onClick={() => props.registerFrequentTask(task)}>よく使う</Action><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>)} saveTask={props.saveTask} />
+      <TaskList empty="連絡待ちはありません。" tasks={filteredWaitingContactTasks} actions={(task) => compactActions(<Action onClick={() => props.moveTask(task, "完了")}>完了</Action>, <><MoveButtons task={task} moveTask={props.moveTask} /><Action subtle onClick={() => props.registerFrequentTask(task)}>よく使う</Action><Action subtle onClick={() => props.requestDelete(task)}>削除</Action></>)} saveTask={props.saveTask} copyTask={props.copyTask} />
     </CollapsibleSection>
     <Section title="整理メモをコピー" description="今日画面の内容から、あとで見返しやすいMarkdown風テキストを作ります。">
       <button className="primary-button" onClick={props.copyKeepText}>整理メモをコピー</button>
@@ -1177,7 +1179,7 @@ function StockView(props: SharedProps & SearchProps & { tasks: Task[]; enjoyment
     <div className="stock-groups">
       <EnjoymentInventoryCard inventory={props.enjoymentInventory} enjoyInventoryItem={props.enjoyInventoryItem} />
       {groups.map((group) => <CollapsibleSection key={group.key} title={group.title} count={group.tasks.length} isOpen={Boolean(openGroups[group.key])} onToggle={() => toggleGroup(group.key)}>
-        <TaskList empty={`${group.title}のタスクはありません。`} tasks={group.tasks} actions={stockActions} saveTask={props.saveTask} />
+        <TaskList empty={`${group.title}のタスクはありません。`} tasks={group.tasks} actions={stockActions} saveTask={props.saveTask} copyTask={props.copyTask} />
       </CollapsibleSection>)}
     </div>
   </div>;
@@ -1253,7 +1255,7 @@ function DoneView(props: Omit<SharedProps, "moveTask"> & SearchProps & { tasks: 
     <Section title="絞り込み"><DoneFilterPanel searchQuery={props.searchQuery} setSearchQuery={props.setSearchQuery} filters={props.filters} setFilters={props.setFilters} /></Section>
     {doneGroups.length === 0 ? <Section title="完了一覧"><p className="empty-text">完了タスクはまだありません。終わったことを残すと、日記や振り返りに使えます。</p></Section> : <div className="done-groups">
       {doneGroups.map((group) => <CollapsibleSection key={group.date} title={group.date} count={group.items.length} isOpen={Boolean(openGroups[group.date])} onToggle={() => toggleGroup(group.date)}>
-        <DoneGroupList items={group.items} saveTask={props.saveTask} undoComplete={props.undoComplete} registerFrequentTask={props.registerFrequentTask} requestDelete={props.requestDelete} />
+        <DoneGroupList items={group.items} saveTask={props.saveTask} copyTask={props.copyTask} undoComplete={props.undoComplete} registerFrequentTask={props.registerFrequentTask} requestDelete={props.requestDelete} />
       </CollapsibleSection>)}
     </div>}
   </div>;
@@ -1272,8 +1274,8 @@ function DoneFilterPanel({ searchQuery, setSearchQuery, filters, setFilters }: S
   </div>;
 }
 
-function DoneGroupList({ items, saveTask, undoComplete, registerFrequentTask, requestDelete }: { items: DoneDisplayItem[]; saveTask: (task: Task, draft: TaskDraft) => void; undoComplete: (task: Task) => void; registerFrequentTask: (task: Task) => void; requestDelete: (task: Task) => void }) {
-  return <div className="task-grid">{items.map((item) => item.kind === "task" ? <TaskCard key={item.id} task={item.task} saveTask={saveTask} actions={<><Action onClick={() => undoComplete(item.task)}>完了を取り消す</Action><Action subtle onClick={() => registerFrequentTask(item.task)}>よく使う</Action><Action subtle onClick={() => requestDelete(item.task)}>削除</Action></>} /> : <RecurringCompletionCard key={item.id} completion={item.completion} />)}</div>;
+function DoneGroupList({ items, saveTask, copyTask, undoComplete, registerFrequentTask, requestDelete }: { items: DoneDisplayItem[]; saveTask: (task: Task, draft: TaskDraft) => void; copyTask: (draft: TaskDraft) => boolean; undoComplete: (task: Task) => void; registerFrequentTask: (task: Task) => void; requestDelete: (task: Task) => void }) {
+  return <div className="task-grid">{items.map((item) => item.kind === "task" ? <TaskCard key={item.id} task={item.task} saveTask={saveTask} copyTask={copyTask} actions={<><Action onClick={() => undoComplete(item.task)}>完了を取り消す</Action><Action subtle onClick={() => registerFrequentTask(item.task)}>よく使う</Action><Action subtle onClick={() => requestDelete(item.task)}>削除</Action></>} /> : <RecurringCompletionCard key={item.id} completion={item.completion} />)}</div>;
 }
 
 function RecurringCompletionCard({ completion }: { completion: RecurringCompletion }) {
@@ -1475,17 +1477,17 @@ function SearchBox({ value, onChange }: { value: string; onChange: (value: strin
   return <label className="search-box">検索<input value={value} onChange={(event) => onChange(event.target.value)} placeholder="タスクを検索" /></label>;
 }
 
-function TaskList({ tasks, empty, actions, saveTask }: { tasks: Task[]; empty: string; actions: (task: Task) => React.ReactNode | TaskCardActions; saveTask: (task: Task, draft: TaskDraft) => void }) {
+function TaskList({ tasks, empty, actions, saveTask, copyTask }: { tasks: Task[]; empty: string; actions: (task: Task) => React.ReactNode | TaskCardActions; saveTask: (task: Task, draft: TaskDraft) => void; copyTask: (draft: TaskDraft) => boolean }) {
   if (tasks.length === 0) return <p className="empty-text">{empty}</p>;
-  return <div className="task-grid">{tasks.map((task) => <TaskCard key={task.id} task={task} saveTask={saveTask} actions={actions(task)} />)}</div>;
+  return <div className="task-grid">{tasks.map((task) => <TaskCard key={task.id} task={task} saveTask={saveTask} copyTask={copyTask} actions={actions(task)} />)}</div>;
 }
 
-function TaskCard({ task, actions, saveTask }: { task: Task; actions: React.ReactNode | TaskCardActions; saveTask: (task: Task, draft: TaskDraft) => void }) {
+function TaskCard({ task, actions, saveTask, copyTask }: { task: Task; actions: React.ReactNode | TaskCardActions; saveTask: (task: Task, draft: TaskDraft) => void; copyTask: (draft: TaskDraft) => boolean }) {
   const [editing, setEditing] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const actionConfig = isTaskCardActions(actions) ? actions : null;
   return <article className="task-card">
-    {editing ? <TaskForm initial={draftFromTask(task)} submitLabel="保存" onSubmit={(draft) => { if (!draft.title.trim()) return false; saveTask(task, draft); setEditing(false); return true; }} onCancel={() => setEditing(false)} allowDone completedAt={task.completedAt} collapseDetails /> : <>
+    {editing ? <TaskForm initial={draftFromTask(task)} submitLabel="保存" onSubmit={(draft) => { if (!draft.title.trim()) return false; saveTask(task, draft); setEditing(false); return true; }} onCopyDraft={copyTask} onCancel={() => setEditing(false)} allowDone completedAt={task.completedAt} collapseDetails /> : <>
       <div className="chips"><span>{task.type}</span><span>{task.category}</span><span>{task.status}</span></div>
       <h3>{task.title}</h3>
       <div className="task-meta">{task.dueDate && <span>期限：{task.dueDate}（{dueLabel(task.dueDate)}）</span>}<span>場所：{task.place}</span>{task.timeSlot && <span>やる時間帯：{task.timeSlot}</span>}</div>
@@ -1500,11 +1502,12 @@ function TaskCard({ task, actions, saveTask }: { task: Task; actions: React.Reac
   </article>;
 }
 
-function TaskForm({ initial, submitLabel, onSubmit, onCancel, allowDone = false, completedAt, collapseDetails = false, frequentTasks }: { initial: TaskDraft; submitLabel: string; onSubmit: (draft: TaskDraft) => boolean; onCancel?: () => void; allowDone?: boolean; completedAt?: string | null; collapseDetails?: boolean; frequentTasks?: FrequentTask[] }) {
+function TaskForm({ initial, submitLabel, onSubmit, onCopyDraft, onCancel, allowDone = false, completedAt, collapseDetails = false, frequentTasks }: { initial: TaskDraft; submitLabel: string; onSubmit: (draft: TaskDraft) => boolean; onCopyDraft?: (draft: TaskDraft) => boolean; onCancel?: () => void; allowDone?: boolean; completedAt?: string | null; collapseDetails?: boolean; frequentTasks?: FrequentTask[] }) {
   const [draft, setDraft] = useState<TaskDraft>(initial);
   const [error, setError] = useState("");
   const [detailsOpen, setDetailsOpen] = useState(!collapseDetails);
   const [frequentCopyOpen, setFrequentCopyOpen] = useState(false);
+  const showFrequentCopyUi = false;
   function setField<K extends keyof TaskDraft>(key: K, value: TaskDraft[K]) { setDraft((current) => ({ ...current, [key]: value })); }
   function copyFromFrequentTask(task: FrequentTask) {
     setDraft((current) => ({
@@ -1526,8 +1529,12 @@ function TaskForm({ initial, submitLabel, onSubmit, onCancel, allowDone = false,
     if (!draft.title.trim()) { setError("タイトルを入力してください。"); return; }
     if (onSubmit(draft)) setDraft({ ...initial, title: "", memo: "", dueDate: "", timeSlot: "" });
   }
+  function copyDraft() {
+    if (!draft.title.trim()) { setError("タイトルを入力してください。"); return; }
+    if (onCopyDraft?.(draft)) setError("");
+  }
   return <form className="task-form" onSubmit={submit}>
-    {frequentTasks && <div className="frequent-copy-panel">
+    {showFrequentCopyUi && frequentTasks && <div className="frequent-copy-panel">
       <button className="form-details-toggle" type="button" onClick={() => setFrequentCopyOpen((current) => !current)} aria-expanded={frequentCopyOpen}>{frequentCopyOpen ? "▼ よく使うを閉じる" : "▶ よく使うからコピー"}</button>
       {frequentCopyOpen && (frequentTasks.length === 0 ? <p className="empty-text">よく使うタスクはまだありません。</p> : <div className="frequent-copy-list">
         {[...frequentTasks].sort(byFrequentTaskManageOrder).map((task) => <button className="frequent-copy-item" key={task.id} type="button" onClick={() => copyFromFrequentTask(task)}>
@@ -1539,6 +1546,7 @@ function TaskForm({ initial, submitLabel, onSubmit, onCancel, allowDone = false,
     <label>タイトル<input value={draft.title} onChange={(event) => setField("title", event.target.value)} placeholder="タイトルだけでも追加できます" /></label>
     {collapseDetails && <button className="form-details-toggle" type="button" onClick={() => setDetailsOpen((current) => !current)} aria-expanded={detailsOpen}>{detailsOpen ? "▼ 項目を閉じる" : "▶ 項目を開く"}</button>}
     {detailsOpen && <div className="task-create-detail-grid"><Select label="種類" value={draft.type} options={TASK_TYPES} onChange={(value) => setField("type", value as TaskType)} /><Select label="状態" value={draft.status} options={allowDone ? TASK_STATUSES : TASK_STATUSES.filter((status) => status !== "完了")} onChange={(value) => setField("status", value as TaskStatus)} /><CategorySelect value={draft.category} onChange={(value) => setField("category", value)} /><Select label="作業場所" value={draft.place} options={TASK_PLACES} onChange={(value) => setField("place", value as TaskPlace)} /><Select label="やる時間帯" value={draft.timeSlot} options={TIME_SLOTS} onChange={(value) => setField("timeSlot", value as TimeSlot)} /><label>期限<input type="date" value={draft.dueDate} onChange={(event) => setField("dueDate", event.target.value)} /></label></div>}
+    {collapseDetails && detailsOpen && onCopyDraft && <button className="subtle-button" type="button" onClick={copyDraft}>コピーして新規登録</button>}
     <label>メモ<textarea value={draft.memo} onChange={(event) => setField("memo", event.target.value)} rows={3} /></label>
     {completedAt && <p className="small-note">完了日は自動設定です：{completedAt.slice(0, 10)}</p>}
     {error && <p className="form-error">{error}</p>}
